@@ -27,9 +27,16 @@ const FIELDS: Field[] = [
   {
     id: "google_oauth_client_id",
     title: "Google OAuth client ID",
-    desc: "Desktop OAuth client for Google Calendar (PKCE — no secret in the app).",
+    desc: "Desktop OAuth client for Google Calendar.",
     placeholder: "…apps.googleusercontent.com",
     hint: "console.cloud.google.com → Credentials → OAuth client (Desktop)",
+  },
+  {
+    id: "google_oauth_client_secret",
+    title: "Google OAuth client secret",
+    desc: "Required by Google for Desktop clients during sign-in. From the same OAuth client as the ID above.",
+    placeholder: "GOCSPX-…",
+    hint: "console.cloud.google.com → Credentials → your OAuth client → Client secret",
   },
   {
     id: "asana_access_token",

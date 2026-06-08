@@ -146,6 +146,7 @@ export type CredentialId =
   | "elevenlabs_api_key"
   | "anthropic_api_key"
   | "google_oauth_client_id"
+  | "google_oauth_client_secret"
   | "asana_access_token";
 
 export interface CredentialStatus {

@@ -12,6 +12,7 @@ pub const CREDENTIAL_IDS: &[&str] = &[
     "elevenlabs_api_key",   // Scribe v2 STT (M2)
     "anthropic_api_key",    // Claude Haiku/Sonnet analysis (M3)
     "google_oauth_client_id", // Google Calendar OAuth client (M5)
+    "google_oauth_client_secret", // some Desktop clients require it in token exchange
     "asana_access_token",   // Asana PAT / OAuth token (M6)
 ];
 

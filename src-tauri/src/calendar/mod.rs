@@ -98,7 +98,13 @@ pub async fn calendar_connect(app: AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())??;
 
-    let tokens = exchange_code(&client_id, &code, &verifier, &redirect).await?;
+    // Some Google "Desktop app" clients require the client secret in the token
+    // exchange even with PKCE; include it when the user has stored one.
+    let client_secret = keychain::get("google_oauth_client_secret")
+        .ok()
+        .flatten()
+        .filter(|s| !s.is_empty());
+    let tokens = exchange_code(&client_id, client_secret.as_deref(), &code, &verifier, &redirect).await?;
     keychain::set(
         TOKENS_KEY,
         &serde_json::to_string(&tokens).map_err(|e| e.to_string())?,
@@ -123,7 +129,11 @@ pub async fn calendar_upcoming() -> Result<Vec<CalendarEvent>, String> {
     let mut tokens: Tokens = serde_json::from_str(&stored).map_err(|e| e.to_string())?;
 
     if tokens.expires_at <= now_secs() + 30 {
-        refresh(&client_id, &mut tokens).await?;
+        let client_secret = keychain::get("google_oauth_client_secret")
+            .ok()
+            .flatten()
+            .filter(|s| !s.is_empty());
+        refresh(&client_id, client_secret.as_deref(), &mut tokens).await?;
         keychain::set(
             TOKENS_KEY,
             &serde_json::to_string(&tokens).map_err(|e| e.to_string())?,
@@ -261,17 +271,21 @@ fn platform_for(url: &str) -> String {
 
 async fn exchange_code(
     client_id: &str,
+    client_secret: Option<&str>,
     code: &str,
     verifier: &str,
     redirect: &str,
 ) -> Result<Tokens, String> {
-    let params = [
+    let mut params = vec![
         ("client_id", client_id),
         ("code", code),
         ("code_verifier", verifier),
         ("grant_type", "authorization_code"),
         ("redirect_uri", redirect),
     ];
+    if let Some(secret) = client_secret {
+        params.push(("client_secret", secret));
+    }
     let resp = reqwest::Client::new()
         .post(TOKEN_ENDPOINT)
         .form(&params)
@@ -290,15 +304,22 @@ async fn exchange_code(
     })
 }
 
-async fn refresh(client_id: &str, tokens: &mut Tokens) -> Result<(), String> {
+async fn refresh(
+    client_id: &str,
+    client_secret: Option<&str>,
+    tokens: &mut Tokens,
+) -> Result<(), String> {
     if tokens.refresh_token.is_empty() {
         return Err("no refresh token — reconnect Google Calendar.".into());
     }
-    let params = [
+    let mut params = vec![
         ("client_id", client_id),
         ("refresh_token", tokens.refresh_token.as_str()),
         ("grant_type", "refresh_token"),
     ];
+    if let Some(secret) = client_secret {
+        params.push(("client_secret", secret));
+    }
     let resp = reqwest::Client::new()
         .post(TOKEN_ENDPOINT)
         .form(&params)
