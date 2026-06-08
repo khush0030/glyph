@@ -5,23 +5,39 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type EventCallback } from "@tauri-apps/api/event";
 
 import type { RecordMode } from "../core/AudioSource";
-import type { AnalysisModel } from "../core/NoteGenerator";
 
 // ---- Commands (frontend → Rust) -------------------------------------------
 export const commands = {
   startRecording: (source: RecordMode, eventId?: string) =>
     invoke<string>("start_recording", { source, eventId }),
   stopRecording: () => invoke<string>("stop_recording"),
-  listNotes: () => invoke("list_notes"),
-  getNote: (id: string) => invoke("get_note", { id }),
+  // NotesStore (SQLite persistence).
+  createNote: (source: NoteSource, title?: string) =>
+    invoke<string>("create_note", { source, title }),
+  listNotes: () => invoke<NoteSummary[]>("list_notes"),
+  getNote: (id: string) => invoke<NoteDetail>("get_note", { id }),
   updateTitle: (id: string, title: string) =>
-    invoke("update_title", { id, title }),
+    invoke<void>("update_title", { id, title }),
   saveScratch: (id: string, scratch: string) =>
-    invoke("save_scratch", { id, scratch }),
-  regenerateNotes: (id: string, model: AnalysisModel) =>
-    invoke("regenerate_notes", { id, model }),
-  deleteNote: (id: string) => invoke("delete_note", { id }),
-  deleteAudio: (id: string) => invoke("delete_audio", { id }),
+    invoke<void>("save_scratch", { id, scratch }),
+  saveSegments: (noteId: string, segments: StoredSegment[]) =>
+    invoke<void>("save_segments", { noteId, segments }),
+  saveGenerated: (noteId: string, note: GeneratedNote) =>
+    invoke<void>("save_generated", {
+      noteId,
+      summary: note.summary,
+      keyPoints: note.keyPoints,
+      decisions: note.decisions,
+      actionItems: note.actionItems,
+      model: note.model,
+    }),
+  addActionItem: (noteId: string, text: string, assignee?: string, dueHint?: string) =>
+    invoke<string>("add_action_item", { noteId, text, assignee, dueHint }),
+  deleteActionItem: (id: string) => invoke<void>("delete_action_item", { id }),
+  setRecordingResult: (id: string, audioPath: string | null, durationSec: number) =>
+    invoke<void>("set_recording_result", { id, audioPath, durationSec }),
+  deleteNote: (id: string) => invoke<void>("delete_note", { id }),
+  deleteAudio: (id: string) => invoke<void>("delete_audio", { id }),
   getSettings: () => invoke<Record<string, string>>("get_settings"),
   setSettings: (kv: Record<string, string>) => invoke("set_settings", { kv }),
   checkPermissions: () => invoke("check_permissions"),
@@ -76,6 +92,54 @@ export interface GeneratedNote {
   decisions: string[];
   actionItems: GeneratedActionItem[];
   model: string;
+}
+
+export type NoteSource = "recorded" | "manual" | "calendar";
+
+export interface NoteSummary {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  source: NoteSource;
+  status: string;
+  actionItemCount: number;
+}
+
+export interface StoredSegment {
+  text: string;
+  lang: string;
+  startMs: number;
+  endMs: number;
+}
+
+export interface StoredActionItem {
+  id: string;
+  text: string;
+  assignee?: string;
+  dueHint?: string;
+  source: "ai" | "manual";
+  asanaGid?: string;
+}
+
+export interface NoteDetail {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  source: NoteSource;
+  status: string;
+  scratch: string;
+  durationSec: number;
+  audioPath: string | null;
+  segments: StoredSegment[];
+  generated: {
+    summary: string;
+    keyPoints: string[];
+    decisions: string[];
+    model: string;
+  } | null;
+  actionItems: StoredActionItem[];
 }
 
 export type CredentialId =

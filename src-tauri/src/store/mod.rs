@@ -1,5 +1,7 @@
-//! NotesStore (SQLite) — SPEC §11. M0 only opens the DB and applies the
-//! schema; CRUD commands land in M4.
+//! NotesStore (SQLite) — SPEC §11. `open()` applies the schema; the CRUD
+//! commands live in `notes_cmds` (M4).
+
+pub mod notes_cmds;
 
 use std::path::PathBuf;
 

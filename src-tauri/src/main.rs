@@ -56,6 +56,18 @@ fn main() {
             calendar::calendar_connect,
             calendar::calendar_disconnect,
             calendar::calendar_upcoming,
+            store::notes_cmds::create_note,
+            store::notes_cmds::list_notes,
+            store::notes_cmds::get_note,
+            store::notes_cmds::update_title,
+            store::notes_cmds::save_scratch,
+            store::notes_cmds::save_segments,
+            store::notes_cmds::save_generated,
+            store::notes_cmds::add_action_item,
+            store::notes_cmds::delete_action_item,
+            store::notes_cmds::set_recording_result,
+            store::notes_cmds::delete_note,
+            store::notes_cmds::delete_audio,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glyph");
