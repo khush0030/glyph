@@ -16,10 +16,14 @@ export default function CalendarEventRow({
   ev,
   showRecord = false,
   onRecord,
+  autoRecord,
+  onAutoRecordChange,
 }: {
   ev: CalendarEvent;
   showRecord?: boolean;
   onRecord?: () => void;
+  autoRecord?: "ask" | "auto";
+  onAutoRecordChange?: (v: "ask" | "auto") => void;
 }) {
   const { t, ampm } = fmtClock(ev.startTs);
   const durMin = Math.max(0, Math.round((ev.endTs - ev.startTs) / 60000));
@@ -42,7 +46,15 @@ export default function CalendarEventRow({
         </div>
       </div>
       {ev.link && (
-        <Seg options={["Ask", "Auto"]} title="Auto-record" />
+        <Seg
+          options={["Ask", "Auto"]}
+          title="Auto-record"
+          value={autoRecord ? (autoRecord === "auto" ? 1 : 0) : undefined}
+          initial={autoRecord === "auto" ? 1 : 0}
+          onChange={
+            onAutoRecordChange ? (i) => onAutoRecordChange(i === 1 ? "auto" : "ask") : undefined
+          }
+        />
       )}
       {showRecord && (
         <Btn sm onClick={onRecord}>

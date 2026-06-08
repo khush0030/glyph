@@ -4,6 +4,7 @@ import CalendarEventRow from "../components/CalendarEventRow";
 import { Card, SectionHead, Btn, ConnPill } from "../components/ui";
 import { CalendarIcon } from "../components/Icons";
 import { useCalendar, groupByDay } from "../lib/useCalendar";
+import { useAutoRecord } from "../lib/useAutoRecord";
 import type { Page } from "../App";
 
 export default function Calendar({
@@ -14,6 +15,7 @@ export default function Calendar({
   onOpenMeeting: (recording: boolean) => void;
 }) {
   const cal = useCalendar();
+  const auto = useAutoRecord();
   const groups = groupByDay(cal.events);
 
   return (
@@ -76,6 +78,8 @@ export default function Calendar({
                   ev={ev}
                   showRecord
                   onRecord={() => onOpenMeeting(true)}
+                  autoRecord={auto.get(ev.id)}
+                  onAutoRecordChange={(v) => auto.set(ev.id, v)}
                 />
               ))}
             </Card>

@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./screens/Dashboard";
 import Calendar from "./screens/Calendar";
 import Notes from "./screens/Notes";
 import Meeting from "./screens/Meeting";
 import Settings from "./screens/Settings";
-import { commands } from "./lib/ipc";
+import MeetingStartingPrompt from "./components/MeetingStartingPrompt";
+import { commands, type NoteSource, type CalendarEvent } from "./lib/ipc";
+import { useMeetingScheduler } from "./lib/useMeetingScheduler";
 
 export type Page = "dashboard" | "calendar" | "notes" | "meeting" | "settings";
 
@@ -13,21 +15,32 @@ export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [meetingNoteId, setMeetingNoteId] = useState<string | null>(null);
   const [meetingRecording, setMeetingRecording] = useState(false);
+  const [starting, setStarting] = useState<CalendarEvent | null>(null);
 
   // Create a fresh note row, then open the Meeting view bound to it.
-  async function openMeeting(recording: boolean) {
-    try {
-      const id = await commands.createNote(
-        recording ? "recorded" : "manual",
-        recording ? "Untitled meeting" : "New note"
-      );
-      setMeetingNoteId(id);
-      setMeetingRecording(recording);
-      setPage("meeting");
-    } catch (e) {
-      console.error("could not create note", e);
-    }
-  }
+  const openMeeting = useCallback(
+    async (recording: boolean, opts?: { title?: string; source?: NoteSource }) => {
+      try {
+        const source = opts?.source ?? (recording ? "recorded" : "manual");
+        const title = opts?.title ?? (recording ? "Untitled meeting" : "New note");
+        const id = await commands.createNote(source, title);
+        setMeetingNoteId(id);
+        setMeetingRecording(recording);
+        setPage("meeting");
+      } catch (e) {
+        console.error("could not create note", e);
+      }
+    },
+    []
+  );
+
+  // Fire at a meeting's start: auto-record, or ask via the prompt.
+  const onAuto = useCallback(
+    (ev: CalendarEvent) => openMeeting(true, { title: ev.title, source: "calendar" }),
+    [openMeeting]
+  );
+  const onAsk = useCallback((ev: CalendarEvent) => setStarting(ev), []);
+  useMeetingScheduler(onAuto, onAsk);
 
   // Open an existing saved note.
   function openNote(id: string) {
@@ -69,6 +82,18 @@ export default function App() {
           {page === "settings" && <Settings />}
         </div>
       </main>
+
+      {starting && (
+        <MeetingStartingPrompt
+          event={starting}
+          onRecord={() => {
+            const ev = starting;
+            setStarting(null);
+            openMeeting(true, { title: ev.title, source: "calendar" });
+          }}
+          onDismiss={() => setStarting(null)}
+        />
+      )}
     </div>
   );
 }
