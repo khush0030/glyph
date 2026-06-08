@@ -1,6 +1,9 @@
 //! macOS Keychain helper. ALL credentials (Scribe / Anthropic / Google /
 //! Asana) live here only — never in the repo or plaintext config (CLAUDE.md
 //! hard rule #1). Thin wrapper over the `keyring` crate.
+//!
+//! get/set/delete are the credential API consumed from M2 onward; unused in M0.
+#![allow(dead_code)]
 
 use keyring::Entry;
 use thiserror::Error;
