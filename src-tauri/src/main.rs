@@ -7,6 +7,7 @@ mod asana;
 mod audio;
 mod calendar;
 mod commands;
+mod credentials;
 mod events;
 mod keychain;
 mod notes;
@@ -43,6 +44,9 @@ fn main() {
             commands::health_check,
             commands::get_settings,
             commands::set_settings,
+            credentials::set_credential,
+            credentials::delete_credential,
+            credentials::credential_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glyph");

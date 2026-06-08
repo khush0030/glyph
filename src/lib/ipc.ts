@@ -33,7 +33,26 @@ export const commands = {
   asanaUsers: () => invoke("asana_users"),
   asanaCreateTasks: (noteId: string, projectGid: string, items: unknown[]) =>
     invoke<number>("asana_create_tasks", { noteId, projectGid, items }),
+
+  // Credentials — secrets go to the Keychain; status returns booleans only.
+  setCredential: (id: CredentialId, value: string) =>
+    invoke<void>("set_credential", { id, value }),
+  deleteCredential: (id: CredentialId) =>
+    invoke<void>("delete_credential", { id }),
+  credentialStatus: () =>
+    invoke<CredentialStatus[]>("credential_status"),
 };
+
+export type CredentialId =
+  | "elevenlabs_api_key"
+  | "anthropic_api_key"
+  | "google_oauth_client_id"
+  | "asana_access_token";
+
+export interface CredentialStatus {
+  id: CredentialId;
+  present: boolean;
+}
 
 // ---- Events (Rust → frontend) ---------------------------------------------
 export const EVENTS = {

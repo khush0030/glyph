@@ -1,5 +1,6 @@
 import PageHeader from "../components/PageHeader";
 import { Card, SectionHead, Seg, ConnPill } from "../components/ui";
+import Credentials from "../components/Credentials";
 import type { ReactNode } from "react";
 
 // One settings row (.srow): title + description left, control right.
@@ -50,6 +51,9 @@ export default function Settings() {
           }
         />
       </Card>
+
+      <SectionHead title="API keys & credentials" />
+      <Credentials />
 
       <SectionHead title="Integrations" />
       <Card>

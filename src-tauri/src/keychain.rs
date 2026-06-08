@@ -38,3 +38,26 @@ pub fn delete(account: &str) -> Result<(), KeychainError> {
         Err(e) => Err(e.into()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_get_delete_round_trip() {
+        let acct = "glyph_test_credential";
+        // clean slate
+        delete(acct).unwrap();
+        assert_eq!(get(acct).unwrap(), None);
+        // set + read back
+        set(acct, "secret-value-123").unwrap();
+        assert_eq!(get(acct).unwrap().as_deref(), Some("secret-value-123"));
+        // overwrite
+        set(acct, "rotated").unwrap();
+        assert_eq!(get(acct).unwrap().as_deref(), Some("rotated"));
+        // delete is idempotent
+        delete(acct).unwrap();
+        delete(acct).unwrap();
+        assert_eq!(get(acct).unwrap(), None);
+    }
+}
