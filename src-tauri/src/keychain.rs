@@ -30,6 +30,16 @@ pub enum KeychainError {
     Sidecar(String),
 }
 
+/// Glyph's macOS application-support directory (same as the DB / sidecar).
+fn app_data_dir() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    Some(
+        PathBuf::from(home)
+            .join("Library/Application Support")
+            .join(SERVICE),
+    )
+}
+
 /// Candidate `.env` locations, in priority order.
 fn env_file_path() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -41,6 +51,9 @@ fn env_file_path() -> Option<PathBuf> {
         if let Some(parent) = cwd.parent() {
             candidates.push(parent.join(".env")); // project-root .env
         }
+    }
+    if let Some(dir) = app_data_dir() {
+        candidates.push(dir.join(".env")); // installed app: stable, survives reinstall
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
@@ -99,13 +112,7 @@ fn read_from_env(account: &str) -> Option<String> {
 /// at runtime (e.g. OAuth tokens) which can't live in the hand-edited `.env`.
 /// `chmod 600` JSON next to the app database.
 fn sidecar_path() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    Some(
-        PathBuf::from(home)
-            .join("Library/Application Support")
-            .join(SERVICE)
-            .join("secrets.json"),
-    )
+    Some(app_data_dir()?.join("secrets.json"))
 }
 
 fn load_sidecar() -> HashMap<String, String> {
