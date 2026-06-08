@@ -30,6 +30,8 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
+        .manage(audio::AudioState::default())
         .setup(|app| {
             // Per-app data dir, e.g. ~/Library/Application Support/ai.oltaflock.glyph
             let dir = app.path().app_data_dir()?;
@@ -47,6 +49,8 @@ fn main() {
             credentials::set_credential,
             credentials::delete_credential,
             credentials::credential_status,
+            audio::start_recording,
+            audio::stop_recording,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glyph");

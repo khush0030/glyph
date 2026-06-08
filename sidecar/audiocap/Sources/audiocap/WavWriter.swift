@@ -19,8 +19,15 @@ final class WavWriter {
     func write(_ samples: [Int16]) {
         var copy = samples
         let data = copy.withUnsafeBytes { Data($0) }
+        let end = handle.seekToEndOfFile()
         handle.write(data)
         dataBytes += UInt32(data.count)
+        // Patch the header in place each frame so an abrupt kill (Rust sends
+        // SIGKILL on Stop) still leaves a valid, playable WAV — then seek back
+        // to the end for the next append.
+        handle.seek(toFileOffset: 0)
+        writeHeader(dataLength: dataBytes)
+        handle.seek(toFileOffset: end + UInt64(data.count))
     }
 
     func close() {

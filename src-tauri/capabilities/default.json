@@ -3,5 +3,13 @@
   "identifier": "default",
   "description": "Core permissions for the Glyph main window.",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [{ "name": "binaries/audiocap", "sidecar": true, "args": true }]
+    }
+  ]
 }

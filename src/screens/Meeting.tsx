@@ -1,18 +1,34 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Seg } from "../components/ui";
 import RecordButton from "../components/RecordButton";
 import NotesView from "../components/NotesView";
 import Transcript from "../components/Transcript";
 import AsanaModal from "../components/AsanaModal";
 import { ChevronDownIcon } from "../components/Icons";
+import { useRecording } from "../lib/useRecording";
 
 type Tab = "notes" | "transcript";
 
+function fmt(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function Meeting({ recording }: { recording: boolean }) {
   const [tab, setTab] = useState<Tab>("notes");
-  const [isRecording, setIsRecording] = useState(recording);
   const [asanaOpen, setAsanaOpen] = useState(false);
   const [title, setTitle] = useState("Sarthak Singapore — Priya review");
+
+  const rec = useRecording();
+  // Auto-start a real recording when the meeting is opened in record mode.
+  const started = useRef(false);
+  useEffect(() => {
+    if (recording && !started.current) {
+      started.current = true;
+      rec.start();
+    }
+  }, [recording, rec]);
 
   return (
     <div className="animate-fade">
@@ -22,14 +38,24 @@ export default function Meeting({ recording }: { recording: boolean }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             spellCheck={false}
+            aria-label="Meeting title"
             className="text-[24px] font-extrabold tracking-[-0.7px] border-none bg-transparent text-ink w-full outline-none"
           />
           <div className="text-[13px] text-faint mt-[5px]">
-            {isRecording ? (
+            {rec.recording ? (
               <>
-                <span className="text-rec font-semibold">● Recording 04:12</span>{" "}
-                · mic + system audio · 3 speakers
+                <span
+                  className="text-rec font-semibold"
+                  style={{ opacity: 0.5 + Math.min(0.5, rec.level * 6) }}
+                >
+                  ● Recording {fmt(rec.elapsed)}
+                </span>{" "}
+                · mic + system audio
               </>
+            ) : rec.error ? (
+              <span className="text-rec">Couldn’t start recording: {rec.error}</span>
+            ) : rec.wavPath ? (
+              <>Saved · {rec.wavPath}</>
             ) : (
               "Manual note · not recording"
             )}
@@ -41,7 +67,7 @@ export default function Meeting({ recording }: { recording: boolean }) {
             options={["Auto", <span className="dev">हिं</span>, "EN"]}
           />
           <Seg title="Engine" options={["Cloud", "Private"]} />
-          {isRecording && <RecordButton onStop={() => setIsRecording(false)} />}
+          {rec.recording && <RecordButton onStop={rec.stop} />}
         </div>
       </div>
 

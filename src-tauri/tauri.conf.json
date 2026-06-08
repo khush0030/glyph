@@ -33,6 +33,6 @@
     "macOS": {
       "minimumSystemVersion": "14.4"
     },
-    "externalBin": []
+    "externalBin": ["binaries/audiocap"]
   }
 }
