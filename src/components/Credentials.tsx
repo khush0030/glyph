@@ -1,86 +1,76 @@
-import { useEffect, useState } from "react";
-import { commands, type CredentialId, type CredentialStatus } from "../lib/ipc";
+import { useState } from "react";
+import { commands, type CredentialId } from "../lib/ipc";
 
 interface Field {
   id: CredentialId;
   title: string;
   desc: string;
   placeholder: string;
-  /** Where to get the credential, shown as a hint link target. */
   hint: string;
 }
 
 const FIELDS: Field[] = [
   {
     id: "elevenlabs_api_key",
-    title: "ElevenLabs API key",
-    desc: "Scribe v2 speech-to-text (~$0.28/hr). Used for cloud transcription.",
+    title: "ElevenLabs",
+    desc: "Scribe v2 speech-to-text for live transcription (~$0.28/hr).",
     placeholder: "sk_…",
     hint: "elevenlabs.io → Profile → API Keys",
   },
   {
     id: "anthropic_api_key",
-    title: "Anthropic API key",
-    desc: "Claude Haiku 4.5 / Sonnet 4.6 — folds transcripts into structured notes.",
+    title: "Anthropic",
+    desc: "Claude Haiku 4.5 / Sonnet 4.6 — turns transcripts into structured notes.",
     placeholder: "sk-ant-…",
     hint: "console.anthropic.com → API Keys",
   },
   {
     id: "google_oauth_client_id",
     title: "Google OAuth client ID",
-    desc: "Desktop OAuth client for Google Calendar (PKCE, no secret in the app).",
+    desc: "Desktop OAuth client for Google Calendar (PKCE — no secret in the app).",
     placeholder: "…apps.googleusercontent.com",
     hint: "console.cloud.google.com → Credentials → OAuth client (Desktop)",
   },
   {
     id: "asana_access_token",
-    title: "Asana access token",
-    desc: "Personal Access Token to push action items as tasks with assignees.",
+    title: "Asana",
+    desc: "Personal Access Token to push action items as assigned, dated tasks.",
     placeholder: "1/12…",
     hint: "app.asana.com → Settings → Apps → Personal access tokens",
   },
 ];
 
-export default function Credentials() {
-  const [status, setStatus] = useState<Record<string, boolean>>({});
-  const [available, setAvailable] = useState(true);
-
-  async function refresh() {
-    try {
-      const list: CredentialStatus[] = await commands.credentialStatus();
-      setStatus(Object.fromEntries(list.map((s) => [s.id, s.present])));
-    } catch {
-      // Not running inside Tauri (e.g. plain `vite` preview) — Keychain absent.
-      setAvailable(false);
-    }
-  }
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
+export default function Credentials({
+  status,
+  available,
+  onChanged,
+}: {
+  status: Record<string, boolean>;
+  available: boolean;
+  onChanged: () => void;
+}) {
   return (
-    <div className="bg-surface border border-line rounded-r shadow-card overflow-hidden">
+    <div className="space-y-3">
       {!available && (
-        <div className="px-5 py-3 text-[12.5px] text-amber bg-amber-soft">
-          Keychain is only reachable in the desktop app — run
-          <span className="font-semibold"> pnpm tauri dev</span> to save keys.
+        <div className="px-4 py-3 rounded-r text-[12.5px] text-amber bg-amber-soft border border-amber/20">
+          Keychain is only reachable in the desktop app — run{" "}
+          <span className="font-semibold">pnpm tauri dev</span> to save keys.
         </div>
       )}
       {FIELDS.map((f) => (
-        <CredentialRow
+        <CredentialCard
           key={f.id}
           field={f}
           present={!!status[f.id]}
           disabled={!available}
-          onChanged={refresh}
+          onChanged={onChanged}
         />
       ))}
     </div>
   );
 }
 
-function CredentialRow({
+function CredentialCard({
   field,
   present,
   disabled,
@@ -118,10 +108,10 @@ function CredentialRow({
   }
 
   return (
-    <div className="px-5 py-[17px] border-b border-line-soft last:border-b-0">
-      <div className="flex items-center justify-between gap-4">
+    <div className="bg-surface border border-line rounded-r shadow-card px-5 py-[18px]">
+      <div className="flex items-start justify-between gap-4 mb-3">
         <div>
-          <div className="text-[14px] font-semibold flex items-center gap-[9px]">
+          <div className="text-[14.5px] font-bold flex items-center gap-[9px]">
             {field.title}
             {present ? (
               <span className="inline-flex items-center gap-[6px] text-[11px] font-semibold text-green bg-green-soft px-[9px] py-[2px] rounded-[20px]">
@@ -133,22 +123,23 @@ function CredentialRow({
               </span>
             )}
           </div>
-          <div className="text-[12.5px] text-muted mt-[2px] max-w-[520px] leading-[1.45]">
-            {field.desc} <span className="text-faint">· {field.hint}</span>
+          <div className="text-[12.5px] text-muted mt-[3px] max-w-[520px] leading-[1.45]">
+            {field.desc}
           </div>
+          <div className="text-[11.5px] text-faint mt-[3px]">{field.hint}</div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-3">
-        <div className="flex-1 flex items-center bg-bg border border-line rounded-[10px] px-3 focus-within:border-indigo">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 flex items-center bg-bg border border-line rounded-[10px] px-3 focus-within:border-indigo transition-colors">
           <input
             type={reveal ? "text" : "password"}
             value={value}
             disabled={disabled || busy}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && save()}
-            placeholder={present ? "•••••••• (saved — type to replace)" : field.placeholder}
-            className="flex-1 bg-transparent border-none outline-none py-[9px] font-sans text-[13px] text-ink"
+            placeholder={present ? "•••••••• saved — type to replace" : field.placeholder}
+            className="flex-1 bg-transparent border-none outline-none py-[10px] font-sans text-[13px] text-ink"
           />
           {value && (
             <button
@@ -161,17 +152,19 @@ function CredentialRow({
           )}
         </div>
         <button
+          type="button"
           onClick={save}
           disabled={disabled || busy || !value.trim()}
-          className="font-semibold text-[12.5px] px-[14px] py-[9px] rounded-[10px] bg-indigo text-white border border-indigo disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-deep"
+          className="font-semibold text-[12.5px] px-[15px] py-[10px] rounded-[10px] bg-indigo text-white border border-indigo disabled:opacity-40 disabled:cursor-not-allowed hover:bg-indigo-deep transition-colors"
         >
           Save
         </button>
         {present && (
           <button
+            type="button"
             onClick={clear}
             disabled={disabled || busy}
-            className="font-semibold text-[12.5px] px-[14px] py-[9px] rounded-[10px] bg-surface text-rec border border-line hover:border-rec disabled:opacity-40"
+            className="font-semibold text-[12.5px] px-[15px] py-[10px] rounded-[10px] bg-surface text-rec border border-line hover:border-rec disabled:opacity-40 transition-colors"
           >
             Clear
           </button>

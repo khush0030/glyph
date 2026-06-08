@@ -1,19 +1,9 @@
 import PageHeader from "../components/PageHeader";
-import MeetingCard from "../components/MeetingCard";
-import NotesList from "../components/NotesList";
-import { Card, SectionHead, Btn } from "../components/ui";
-import { PlusIcon, RecordDotIcon, ChevronRightIcon } from "../components/Icons";
-import { upcoming, recentNotes } from "../lib/mock";
+import EmptyState from "../components/EmptyState";
+import { SectionHead, Btn } from "../components/ui";
+import { PlusIcon, RecordDotIcon, CalendarIcon, NotesIcon } from "../components/Icons";
+import { greeting, longDate } from "../lib/datetime";
 import type { Page } from "../App";
-
-const ViewAll = ({ onClick }: { onClick: () => void }) => (
-  <a
-    onClick={onClick}
-    className="text-[13px] font-semibold text-indigo cursor-pointer inline-flex items-center gap-1"
-  >
-    View all <ChevronRightIcon className="w-[13px] h-[13px]" />
-  </a>
-);
 
 export default function Dashboard({
   onNavigate,
@@ -25,8 +15,8 @@ export default function Dashboard({
   return (
     <div className="animate-fade">
       <PageHeader
-        title="Good afternoon, Khush"
-        sub="Monday, 8 June · 2 meetings today"
+        title={`${greeting()}, Khush`}
+        sub={longDate()}
         right={
           <>
             <Btn onClick={() => onOpenMeeting(false)}>
@@ -39,23 +29,29 @@ export default function Dashboard({
         }
       />
 
-      <SectionHead
-        title="Up next"
-        action={<ViewAll onClick={() => onNavigate("calendar")} />}
+      <SectionHead title="Up next" />
+      <EmptyState
+        icon={<CalendarIcon className="w-7 h-7" />}
+        title="No upcoming meetings"
+        body="Connect Google Calendar to see your schedule and auto-record meetings with a video link."
+        action={
+          <Btn variant="primary" onClick={() => onNavigate("settings")}>
+            Connect Google Calendar
+          </Btn>
+        }
       />
-      <Card>
-        {upcoming.map((m, i) => (
-          <MeetingCard key={i} m={m} />
-        ))}
-      </Card>
 
-      <SectionHead
-        title="Recent notes"
-        action={<ViewAll onClick={() => onNavigate("notes")} />}
+      <SectionHead title="Recent notes" />
+      <EmptyState
+        icon={<NotesIcon className="w-7 h-7" />}
+        title="No notes yet"
+        body="Start a recording or create a note — your meetings will show up here."
+        action={
+          <Btn onClick={() => onOpenMeeting(true)}>
+            <RecordDotIcon className="w-[15px] h-[15px]" /> Start recording
+          </Btn>
+        }
       />
-      <Card>
-        <NotesList rows={recentNotes} onOpen={() => onOpenMeeting(false)} />
-      </Card>
     </div>
   );
 }

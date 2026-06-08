@@ -67,17 +67,27 @@ export function Badge({
   );
 }
 
-/** Segmented control (Ask/Auto, Cloud/Private, language). Local UI state only. */
+/** Segmented control. Uncontrolled by default; pass `value`+`onChange` to
+ *  control it (e.g. persisted settings). */
 export function Seg({
   options,
   initial = 0,
   title,
+  value,
+  onChange,
 }: {
   options: ReactNode[];
   initial?: number;
   title?: string;
+  value?: number;
+  onChange?: (index: number) => void;
 }) {
-  const [on, setOn] = useState(initial);
+  const [internal, setInternal] = useState(initial);
+  const on = value ?? internal;
+  const select = (i: number) => {
+    if (value === undefined) setInternal(i);
+    onChange?.(i);
+  };
   return (
     <span
       title={title}
@@ -86,7 +96,8 @@ export function Seg({
       {options.map((label, i) => (
         <button
           key={i}
-          onClick={() => setOn(i)}
+          type="button"
+          onClick={() => select(i)}
           className={`border-none font-semibold text-[11.5px] px-[11px] py-[5px] rounded-[7px] cursor-pointer transition-[0.14s] ${
             on === i
               ? "bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,.05)]"

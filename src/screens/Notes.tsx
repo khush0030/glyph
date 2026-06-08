@@ -1,33 +1,35 @@
 import PageHeader from "../components/PageHeader";
-import NotesList from "../components/NotesList";
-import { Card, SectionHead, Btn } from "../components/ui";
-import { PlusIcon } from "../components/Icons";
-import { notesDays } from "../lib/mock";
+import EmptyState from "../components/EmptyState";
+import { Btn } from "../components/ui";
+import { PlusIcon, NotesIcon, RecordDotIcon } from "../components/Icons";
 
 export default function Notes({
   onOpenMeeting,
 }: {
   onOpenMeeting: (recording: boolean) => void;
 }) {
+  // Saved notes load from SQLite in M4; until then, an empty library.
   return (
     <div className="animate-fade">
       <PageHeader
         title="Notes"
-        sub="14 meetings this week"
+        sub="Your meeting notes, saved on this Mac"
         right={
           <Btn onClick={() => onOpenMeeting(false)}>
             <PlusIcon className="w-[15px] h-[15px]" /> New note
           </Btn>
         }
       />
-      {notesDays.map((day) => (
-        <div key={day.label}>
-          <SectionHead title={day.label} />
-          <Card className="mb-2">
-            <NotesList rows={day.items} onOpen={() => onOpenMeeting(false)} />
-          </Card>
-        </div>
-      ))}
+      <EmptyState
+        icon={<NotesIcon className="w-7 h-7" />}
+        title="No notes yet"
+        body="Record a meeting or create a blank note. Everything you capture is stored locally and shows up here."
+        action={
+          <Btn variant="primary" onClick={() => onOpenMeeting(true)}>
+            <RecordDotIcon className="w-[15px] h-[15px]" /> Start recording
+          </Btn>
+        }
+      />
     </div>
   );
 }

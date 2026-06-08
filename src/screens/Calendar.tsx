@@ -1,35 +1,32 @@
 import PageHeader from "../components/PageHeader";
-import MeetingCard from "../components/MeetingCard";
-import { Card, SectionHead, ConnPill } from "../components/ui";
-import { calendarDays } from "../lib/mock";
+import EmptyState from "../components/EmptyState";
+import { Btn } from "../components/ui";
+import { CalendarIcon } from "../components/Icons";
+import type { Page } from "../App";
 
 export default function Calendar({
-  onOpenMeeting,
+  onNavigate,
 }: {
-  onOpenMeeting: (recording: boolean) => void;
+  onNavigate: (p: Page) => void;
 }) {
+  // Real Google Calendar events arrive in M5; until connected, show an
+  // empty/connect state rather than placeholder meetings.
   return (
     <div className="animate-fade">
       <PageHeader
         title="Calendar"
         sub="Upcoming meetings · auto-detected video links"
-        right={<ConnPill>Google Calendar</ConnPill>}
       />
-      {calendarDays.map((day) => (
-        <div key={day.label}>
-          <SectionHead title={day.label} />
-          <Card className="mb-2">
-            {day.items.map((m, i) => (
-              <MeetingCard
-                key={i}
-                m={m}
-                showRecord
-                onRecord={() => onOpenMeeting(true)}
-              />
-            ))}
-          </Card>
-        </div>
-      ))}
+      <EmptyState
+        icon={<CalendarIcon className="w-7 h-7" />}
+        title="Google Calendar not connected"
+        body="Connect your calendar to list upcoming meetings grouped by day, detect Meet/Zoom/Teams links, and auto- or ask-to-record at start time."
+        action={
+          <Btn variant="primary" onClick={() => onNavigate("settings")}>
+            Connect in Settings
+          </Btn>
+        }
+      />
     </div>
   );
 }
