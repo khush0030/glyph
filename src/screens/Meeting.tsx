@@ -6,6 +6,7 @@ import Transcript from "../components/Transcript";
 import AsanaModal from "../components/AsanaModal";
 import { ChevronDownIcon } from "../components/Icons";
 import { useRecording } from "../lib/useRecording";
+import { useTranscript } from "../lib/useTranscript";
 
 type Tab = "notes" | "transcript";
 
@@ -21,14 +22,16 @@ export default function Meeting({ recording }: { recording: boolean }) {
   const [title, setTitle] = useState("Sarthak Singapore — Priya review");
 
   const rec = useRecording();
+  const tx = useTranscript(true);
   // Auto-start a real recording when the meeting is opened in record mode.
   const started = useRef(false);
   useEffect(() => {
     if (recording && !started.current) {
       started.current = true;
+      tx.reset();
       rec.start();
     }
-  }, [recording, rec]);
+  }, [recording, rec, tx]);
 
   return (
     <div className="animate-fade">
@@ -88,6 +91,11 @@ export default function Meeting({ recording }: { recording: boolean }) {
                 AI
               </span>
             )}
+            {t === "transcript" && tx.segments.length > 0 && (
+              <span className="text-[10px] bg-line-soft text-muted rounded-[20px] px-[7px] py-[1px] font-bold">
+                {tx.segments.length}
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -135,7 +143,11 @@ export default function Meeting({ recording }: { recording: boolean }) {
           </aside>
         </div>
       ) : (
-        <Transcript />
+        <Transcript
+          segments={tx.segments}
+          partial={tx.partial}
+          recording={rec.recording}
+        />
       )}
 
       {asanaOpen && <AsanaModal onClose={() => setAsanaOpen(false)} />}

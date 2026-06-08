@@ -1,18 +1,21 @@
-//! AudioController — spawns the native Swift `audiocap` sidecar and bridges it
-//! to the UI. M1: sidecar records to a 16 kHz mono WAV in app data; Rust reads
-//! its JSON stderr, logs the live RMS level and re-emits it as
-//! `recording://level` / `recording://status`. Live PCM streaming to the
-//! Transcriber lands in M2.
+//! AudioController — spawns the native Swift `audiocap` sidecar (stream mode)
+//! and fans its output out three ways: persists a 16 kHz mono WAV, forwards
+//! each PCM frame to the Scribe v2 Transcriber for live transcription (M2), and
+//! re-emits the sidecar's RMS level / status to the UI.
 
+mod wav;
+
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use base64::Engine;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-use crate::events;
+use crate::{events, keychain, stt};
 
 /// Holds the live recording session, if any.
 #[derive(Default)]
@@ -44,33 +47,20 @@ pub fn start_recording(app: AppHandle, source: String) -> Result<String, String>
     let wav_path = dir.join(format!("rec-{ts}.wav"));
     let wav_str = wav_path.to_string_lossy().to_string();
 
-    // Manual is mic-first; the sidecar still attempts the system tap and falls
-    // back to mic-only if it is unavailable.
     tracing::info!("start_recording (source={source}) → {wav_str}");
-    let (mut rx, child) = app
+    let (rx, child) = app
         .shell()
         .sidecar("binaries/audiocap")
         .map_err(|e| e.to_string())?
-        .args(["--wav", &wav_str])
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    let app_evt = app.clone();
-    tauri::async_runtime::spawn(async move {
-        while let Some(event) = rx.recv().await {
-            match event {
-                // The shell plugin emits one stderr line per event (newline
-                // stripped) — each is a JSON status/level/error object.
-                CommandEvent::Stderr(line) => handle_line(&app_evt, &line),
-                CommandEvent::Terminated(_) => {
-                    let _ = app_evt
-                        .emit(events::RECORDING_STATUS, serde_json::json!({"state": "stopped"}));
-                    break;
-                }
-                _ => {}
-            }
-        }
-    });
+    // ElevenLabs key is optional — without it, recording still saves a WAV and
+    // shows levels; only live transcription is skipped.
+    let api_key = keychain::get("elevenlabs_api_key").ok().flatten();
+    let app_task = app.clone();
+    let wav_for_task = wav_str.clone();
+    tauri::async_runtime::spawn(pipeline(app_task, rx, wav_for_task, api_key));
 
     *guard = Some(Session {
         child,
@@ -85,14 +75,114 @@ pub fn stop_recording(app: AppHandle) -> Result<String, String> {
     let mut guard = state.0.lock().map_err(|e| e.to_string())?;
     let session = guard.take().ok_or("not recording")?;
     let path = session.wav_path.clone();
-    // SIGKILL is fine: the sidecar patches the WAV header every frame, so the
-    // file on disk is always a valid, playable 16 kHz mono WAV.
+    // Killing the sidecar ends its stdout → the pipeline task finalizes the WAV
+    // and drops the Scribe handle (closing the socket).
     session.child.kill().map_err(|e| e.to_string())?;
     tracing::info!("stop_recording → saved {path}");
     Ok(path)
 }
 
-fn handle_line(app: &AppHandle, line: &[u8]) {
+/// Consumes the sidecar's event stream until it exits.
+async fn pipeline(
+    app: AppHandle,
+    mut rx: tauri::async_runtime::Receiver<CommandEvent>,
+    wav_path: String,
+    api_key: Option<String>,
+) {
+    let scribe = match api_key {
+        Some(key) => match stt::connect(app.clone(), key).await {
+            Ok(h) => {
+                let _ = app.emit(
+                    events::RECORDING_STATUS,
+                    serde_json::json!({"state":"transcribing"}),
+                );
+                Some(h)
+            }
+            Err(e) => {
+                tracing::warn!("scribe connect failed: {e}");
+                let _ = app.emit(
+                    events::RECORDING_STATUS,
+                    serde_json::json!({"state":"no_transcription","reason":e}),
+                );
+                None
+            }
+        },
+        None => {
+            let _ = app.emit(
+                events::RECORDING_STATUS,
+                serde_json::json!({"state":"no_transcription","reason":"no ElevenLabs key"}),
+            );
+            None
+        }
+    };
+
+    let mut wav = wav::WavWriter::create(Path::new(&wav_path), 16_000)
+        .map_err(|e| tracing::error!("wav create failed: {e}"))
+        .ok();
+
+    let mut out_buf: Vec<u8> = Vec::new();
+    let mut err_buf: Vec<u8> = Vec::new();
+
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(bytes) => {
+                out_buf.extend_from_slice(&bytes);
+                drain_lines(&mut out_buf, |line| {
+                    handle_pcm(line, wav.as_mut(), scribe.as_ref())
+                });
+            }
+            CommandEvent::Stderr(bytes) => {
+                err_buf.extend_from_slice(&bytes);
+                drain_lines(&mut err_buf, |line| handle_status(&app, line));
+            }
+            CommandEvent::Terminated(_) => break,
+            _ => {}
+        }
+    }
+
+    if let Some(w) = wav.take() {
+        let _ = w.finalize();
+    }
+    let _ = app.emit(events::RECORDING_STATUS, serde_json::json!({"state":"stopped"}));
+    // `scribe` drops here → final commit + close.
+}
+
+/// Split `buf` on newlines, invoking `cb` per complete line; keep the remainder.
+fn drain_lines(buf: &mut Vec<u8>, mut cb: impl FnMut(&[u8])) {
+    let mut start = 0;
+    while let Some(pos) = buf[start..].iter().position(|&b| b == b'\n') {
+        let end = start + pos;
+        cb(&buf[start..end]);
+        start = end + 1;
+    }
+    if start > 0 {
+        buf.drain(..start);
+    }
+}
+
+/// A `{"kind":"pcm","b64":...}` line → append to WAV + forward to Scribe.
+fn handle_pcm(line: &[u8], wav: Option<&mut wav::WavWriter>, scribe: Option<&stt::ScribeHandle>) {
+    let Ok(v) = serde_json::from_slice::<Value>(line) else {
+        return;
+    };
+    if v.get("kind").and_then(|k| k.as_str()) != Some("pcm") {
+        return;
+    }
+    let Some(b64) = v.get("b64").and_then(|b| b.as_str()) else {
+        return;
+    };
+    if let Some(w) = wav {
+        if let Ok(pcm) = base64::engine::general_purpose::STANDARD.decode(b64) {
+            let _ = w.write_pcm(&pcm);
+        }
+    }
+    if let Some(s) = scribe {
+        s.push_b64(b64.to_string());
+    }
+}
+
+/// A sidecar stderr line (status/level/error JSON) → log + UI events.
+fn handle_status(app: &AppHandle, line: &[u8]) {
     let Ok(v) = serde_json::from_slice::<Value>(line) else {
         return;
     };

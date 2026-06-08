@@ -20,6 +20,10 @@ keyring = { version = "3", features = ["apple-native"] }
 thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["sync", "rt", "macros"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+base64 = "0.22"
 
 [features]
 # Tauri v2: custom-protocol is enabled for release builds by the CLI.
