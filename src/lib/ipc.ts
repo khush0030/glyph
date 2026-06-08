@@ -42,8 +42,9 @@ export const commands = {
   setSettings: (kv: Record<string, string>) => invoke("set_settings", { kv }),
   openPrivacySettings: (pane: "microphone" | "screen") =>
     invoke<void>("open_privacy_settings", { pane }),
-  checkPermissions: () => invoke("check_permissions"),
-  openPermissionSettings: () => invoke("open_permission_settings"),
+  checkPermissions: () => invoke<Permissions>("check_permissions"),
+  requestPermissions: () => invoke<Permissions>("request_permissions"),
+  openPermissionSettings: () => invoke<void>("open_permission_settings"),
   // Asana (Personal Access Token).
   asanaWorkspaces: () => invoke<AsanaIdName[]>("asana_workspaces"),
   asanaProjects: (workspace: string) =>
@@ -104,6 +105,13 @@ export interface AsanaTaskIn {
   text: string;
   assigneeGid?: string;
   dueOn?: string;
+}
+
+export type MicPermission = "authorized" | "denied" | "restricted" | "undetermined";
+export type ScreenPermission = "granted" | "denied";
+export interface Permissions {
+  mic: MicPermission;
+  screen: ScreenPermission;
 }
 
 export type AnalysisModelId = "claude-haiku-4-5" | "claude-sonnet-4-6";

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime entitlements for the Glyph app bundle. audio-input lets the
+     app (and its responsible-process children) use the microphone under the
+     hardened runtime. The Swift audiocap sidecar is signed separately with its
+     own entitlements in sidecar/build-and-install.sh. -->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>

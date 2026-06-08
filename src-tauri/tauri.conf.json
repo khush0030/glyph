@@ -31,7 +31,9 @@
     "category": "Productivity",
     "icon": ["icons/icon.icns"],
     "macOS": {
-      "minimumSystemVersion": "14.4"
+      "minimumSystemVersion": "14.4",
+      "entitlements": "Entitlements.plist",
+      "signingIdentity": "-"
     },
     "externalBin": ["binaries/audiocap"]
   }

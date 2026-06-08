@@ -12,6 +12,7 @@ export const DEFAULTS: SettingsMap = {
   audio_retention: "delete",
   auto_disclosure: "off",
   theme: "system",
+  onboarded: "no",
 };
 
 export function useSettings() {

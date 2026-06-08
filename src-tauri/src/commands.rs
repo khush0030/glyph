@@ -31,6 +31,56 @@ pub fn open_privacy_settings(app: tauri::AppHandle, pane: String) -> Result<(), 
         .map_err(|e| e.to_string())
 }
 
+/// macOS permission state for the first-run flow. `mic` is one of
+/// authorized/denied/restricted/undetermined; `screen` is granted/denied.
+/// Calendar is Google OAuth (app-level) — reported via `calendar_connected`.
+#[derive(serde::Serialize, Default)]
+pub struct Permissions {
+    pub mic: String,
+    pub screen: String,
+}
+
+// Ask the sidecar (which owns AVFoundation + the system-audio tap) to report
+// permission state. `flag` is --check-perms (no prompt) or --request-perms.
+async fn probe_permissions(app: &tauri::AppHandle, flag: &str) -> Result<Permissions, String> {
+    use tauri_plugin_shell::ShellExt;
+    let out = app
+        .shell()
+        .sidecar("audiocap")
+        .map_err(|e| e.to_string())?
+        .args([flag])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let line = stdout.lines().last().unwrap_or("").trim();
+    let v: serde_json::Value =
+        serde_json::from_str(line).map_err(|e| format!("bad perms output {line:?}: {e}"))?;
+    Ok(Permissions {
+        mic: v["mic"].as_str().unwrap_or("undetermined").to_string(),
+        screen: v["screen"].as_str().unwrap_or("denied").to_string(),
+    })
+}
+
+/// Report current mic + screen-recording permission, without prompting.
+#[tauri::command]
+pub async fn check_permissions(app: tauri::AppHandle) -> Result<Permissions, String> {
+    probe_permissions(&app, "--check-perms").await
+}
+
+/// Trigger the OS permission prompts (mic + screen capture), then report.
+#[tauri::command]
+pub async fn request_permissions(app: tauri::AppHandle) -> Result<Permissions, String> {
+    probe_permissions(&app, "--request-perms").await
+}
+
+/// Open the Screen & System-Audio Recording pane — the one that needs a manual
+/// toggle (mic is grantable in-app; the system-audio tap is not).
+#[tauri::command]
+pub fn open_permission_settings(app: tauri::AppHandle) -> Result<(), String> {
+    open_privacy_settings(app, "screen".into())
+}
+
 #[tauri::command]
 pub fn get_settings(db: State<'_, Db>) -> Result<HashMap<String, String>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;

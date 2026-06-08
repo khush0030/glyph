@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the generated Info.plist by Tauri at bundle time. The mic usage
+     string is REQUIRED: without it macOS terminates the app the moment it
+     requests microphone access. System-audio capture uses the Core Audio
+     process tap (Screen & System Audio Recording TCC), granted in System
+     Settings — no Info.plist key gates it. -->
+<plist version="1.0">
+<dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Glyph records your microphone to transcribe meetings into notes. Audio stays on this Mac.</string>
+</dict>
+</plist>

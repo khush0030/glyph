@@ -6,9 +6,11 @@ import Notes from "./screens/Notes";
 import Meeting from "./screens/Meeting";
 import Settings from "./screens/Settings";
 import MeetingStartingPrompt from "./components/MeetingStartingPrompt";
+import Onboarding from "./components/Onboarding";
 import { commands, type NoteSource, type CalendarEvent } from "./lib/ipc";
 import { useMeetingScheduler } from "./lib/useMeetingScheduler";
 import { useRecordingActive } from "./lib/useRecordingActive";
+import { useSettings } from "./lib/useSettings";
 import { useTheme } from "./lib/useTheme";
 
 export type Page = "dashboard" | "calendar" | "notes" | "meeting" | "settings";
@@ -21,6 +23,16 @@ export default function App() {
 
   // Load the persisted theme and apply `.dark` to <html> on startup.
   useTheme();
+
+  // First-run permission walk-through, shown until completed/skipped once.
+  const { values: settings, set: setSetting, loaded: settingsLoaded } = useSettings();
+  const [onboardDismissed, setOnboardDismissed] = useState(false);
+  const showOnboarding =
+    settingsLoaded && settings.onboarded !== "yes" && !onboardDismissed;
+  const finishOnboarding = useCallback(() => {
+    setOnboardDismissed(true);
+    setSetting("onboarded", "yes");
+  }, [setSetting]);
 
   // Create a fresh note row, then open the Meeting view bound to it.
   const openMeeting = useCallback(
@@ -55,6 +67,8 @@ export default function App() {
     setMeetingRecording(false);
     setPage("meeting");
   }
+
+  if (showOnboarding) return <Onboarding onDone={finishOnboarding} />;
 
   return (
     <div className="grid grid-cols-[230px_1fr] h-screen">

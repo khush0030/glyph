@@ -6,9 +6,15 @@ import AVFoundation
 // Modes:
 //   audiocap                       stream length-framed 16 kHz PCM to stdout
 //   audiocap --wav OUT [--seconds N]   write a WAV for listening (M1 validation)
+//   audiocap --check-perms         print {mic,screen} permission JSON, exit
+//   audiocap --request-perms       trigger OS permission prompts, then report
 //   flags: --no-system   capture mic only (skip the system-audio tap)
 //
 // Status / level / error lines are JSON on stderr.
+
+// Permission probes are one-shot: handle before any audio engine setup.
+if CommandLine.arguments.contains("--check-perms") { Permissions.report() }
+if CommandLine.arguments.contains("--request-perms") { Permissions.request() }
 
 struct Args {
     var wavPath: String?
