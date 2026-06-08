@@ -34,6 +34,10 @@ export const commands = {
   asanaCreateTasks: (noteId: string, projectGid: string, items: unknown[]) =>
     invoke<number>("asana_create_tasks", { noteId, projectGid, items }),
 
+  // Notes — fold transcript + scratch into structured notes via Claude.
+  generateNotes: (transcript: string, scratch: string, model?: AnalysisModelId) =>
+    invoke<GeneratedNote>("generate_notes", { transcript, scratch, model }),
+
   // Credentials — secrets go to the Keychain; status returns booleans only.
   setCredential: (id: CredentialId, value: string) =>
     invoke<void>("set_credential", { id, value }),
@@ -42,6 +46,22 @@ export const commands = {
   credentialStatus: () =>
     invoke<CredentialStatus[]>("credential_status"),
 };
+
+export type AnalysisModelId = "claude-haiku-4-5" | "claude-sonnet-4-6";
+
+export interface GeneratedActionItem {
+  text: string;
+  assignee?: string;
+  dueHint?: string;
+}
+
+export interface GeneratedNote {
+  summary: string;
+  keyPoints: string[];
+  decisions: string[];
+  actionItems: GeneratedActionItem[];
+  model: string;
+}
 
 export type CredentialId =
   | "elevenlabs_api_key"

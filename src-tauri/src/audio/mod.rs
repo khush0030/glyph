@@ -48,9 +48,12 @@ pub fn start_recording(app: AppHandle, source: String) -> Result<String, String>
     let wav_str = wav_path.to_string_lossy().to_string();
 
     tracing::info!("start_recording (source={source}) → {wav_str}");
+    // The shell plugin resolves the sidecar as `<exe_dir>/<name>` (no dir
+    // stripping), and Tauri installs it as the basename next to the executable
+    // (target/debug/audiocap in dev, Contents/MacOS/audiocap in the bundle).
     let (rx, child) = app
         .shell()
-        .sidecar("binaries/audiocap")
+        .sidecar("audiocap")
         .map_err(|e| e.to_string())?
         .spawn()
         .map_err(|e| e.to_string())?;

@@ -51,6 +51,7 @@ fn main() {
             credentials::credential_status,
             audio::start_recording,
             audio::stop_recording,
+            notes::generate_notes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glyph");
