@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glyph — App Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FAFAFC; --surface:#FFFFFF; --ink:#1A1823; --muted:#6C6979; --faint:#A4A1B2;
+    --line:#EDECF2; --line-soft:#F4F3F8;
+    --indigo:#5A4BD4; --indigo-deep:#4636AE; --indigo-soft:#EFEDFC;
+    --lime:#C6F24E; --lime-deep:#3F5807;
+    --rec:#E5484D; --rec-soft:#FCEEEE; --green:#2F9E6B; --green-soft:#E8F6EF; --amber:#C77D18; --amber-soft:#FBF1E0;
+    --r:18px; --rs:11px; --rl:24px;
+    --sh:0 1px 2px rgba(26,24,35,.03),0 4px 16px rgba(26,24,35,.04);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{font-family:"Plus Jakarta Sans",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow:hidden;letter-spacing:-.1px}
+  .dev{font-family:"Noto Sans Devanagari",sans-serif;letter-spacing:0}
+  .app{display:grid;grid-template-columns:230px 1fr;height:100vh}
+  svg.ic{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+  /* sidebar */
+  .side{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:22px 14px}
+  .brand{display:flex;align-items:center;gap:10px;padding:2px 8px 26px}
+  .brand .mk{width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,#241C45,#48368E);display:grid;place-items:center;flex-shrink:0}
+  .brand .mk .ring{width:15px;height:15px;border-radius:50%;border:2.5px solid var(--lime)}
+  .brand h1{font-size:19px;font-weight:800;letter-spacing:-.6px}
+  .nav{display:flex;flex-direction:column;gap:3px}
+  .nav button{display:flex;align-items:center;gap:12px;border:none;background:none;font-family:inherit;font-size:14px;font-weight:500;color:var(--muted);padding:10px 12px;border-radius:10px;cursor:pointer;transition:.14s;width:100%;text-align:left}
+  .nav button:hover{background:var(--line-soft);color:var(--ink)}
+  .nav button.on{background:var(--indigo-soft);color:var(--indigo-deep);font-weight:600}
+  .nav .ic{width:18px;height:18px;flex-shrink:0}
+  .rec-cta{margin-top:auto;display:flex;align-items:center;justify-content:center;gap:9px;background:var(--ink);color:#fff;border:none;font-family:inherit;font-size:14px;font-weight:600;padding:13px;border-radius:13px;cursor:pointer;transition:.18s}
+  .rec-cta:hover{transform:translateY(-1px)}
+  .rec-cta .dot{width:8px;height:8px;border-radius:50%;background:var(--rec)}
+  .sfoot{display:flex;align-items:center;gap:10px;padding:16px 8px 0;margin-top:16px;border-top:1px solid var(--line)}
+  .sfoot .av{width:30px;height:30px;border-radius:50%;background:var(--indigo);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}
+  .sfoot .nm{font-size:13px;font-weight:600}.sfoot .su{font-size:11px;color:var(--faint)}
+
+  /* main */
+  .main{overflow-y:auto;height:100vh}
+  .page{display:none;padding:34px 40px 64px;max-width:1000px;margin:0 auto;animation:fade .3s ease}
+  .page.show{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .ph{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:28px}
+  .ph .hi{font-size:26px;font-weight:800;letter-spacing:-.8px}
+  .ph .sub{font-size:13.5px;color:var(--faint);margin-top:4px}
+  .ph .acts{display:flex;gap:10px}
+
+  .btn{font-family:inherit;font-weight:600;font-size:13.5px;border-radius:11px;padding:10px 15px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);transition:.15s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+  .btn:hover{border-color:var(--faint)}
+  .btn .ic{width:15px;height:15px}
+  .btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+  .btn.primary:hover{background:var(--indigo-deep)}
+  .btn.lime{background:var(--lime);color:var(--lime-deep);border-color:var(--lime)}
+  .btn.sm{padding:7px 11px;font-size:12.5px;border-radius:9px}
+  .btn.ghost{border-color:transparent;background:var(--line-soft)}
+
+  .sech{display:flex;align-items:center;justify-content:space-between;margin:30px 0 14px}
+  .sech .t{font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--faint)}
+  .sech a{font-size:13px;font-weight:600;color:var(--indigo);cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+
+  .tag{font-size:10.5px;font-weight:600;padding:2.5px 9px;border-radius:20px}
+  .tag.client{background:var(--indigo-soft);color:var(--indigo-deep)}
+  .tag.internal{background:var(--line-soft);color:var(--muted)}
+  .badge{font-size:11px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+  .badge .pdot{width:6px;height:6px;border-radius:50%}
+  .seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:2px}
+  .seg button{border:none;background:none;font-family:inherit;font-size:11.5px;font-weight:600;color:var(--muted);padding:5px 11px;border-radius:7px;cursor:pointer;transition:.14s}
+  .seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.05)}
+
+  /* meeting rows */
+  .mrow{display:flex;align-items:center;gap:16px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+  .mrow:last-child{border-bottom:none}
+  .mrow .time{min-width:64px}
+  .mrow .time .t{font-size:14.5px;font-weight:700}
+  .mrow .time .e{font-size:11.5px;color:var(--faint);font-weight:500}
+  .mrow .bd{flex:1;min-width:0}
+  .mrow .ti{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:9px}
+  .mrow .mta{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:10px}
+
+  /* notes list */
+  .nrow{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:.12s}
+  .nrow:last-child{border-bottom:none}
+  .nrow:hover{background:var(--line-soft)}
+  .nrow .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .nrow .nt{flex:1;font-size:14px;font-weight:600}
+  .nrow .nm{font-size:12px;color:var(--faint)}
+
+  /* meeting detail */
+  .mt-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:22px}
+  .mt-top .ttl{font-size:24px;font-weight:800;letter-spacing:-.7px;border:none;background:none;color:var(--ink);width:100%;outline:none}
+  .mt-top .meta{font-size:13px;color:var(--faint);margin-top:5px}
+  .mt-top .meta .recd{color:var(--rec);font-weight:600}
+  .ctrls{display:flex;align-items:center;gap:9px;flex-shrink:0}
+  .recbtn{display:flex;align-items:center;gap:9px;border:none;cursor:pointer;background:var(--rec);color:#fff;font-family:inherit;font-size:13.5px;font-weight:600;padding:10px 17px;border-radius:12px;transition:.18s}
+  .recbtn .pd{width:9px;height:9px;border-radius:50%;background:#fff;animation:pulse 1.1s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.6)}}
+  .tabs{display:flex;gap:26px;border-bottom:1px solid var(--line);margin-bottom:22px}
+  .tab{font-size:14px;font-weight:600;color:var(--faint);padding:0 2px 12px;cursor:pointer;border-bottom:2px solid transparent;transition:.14s;display:flex;align-items:center;gap:7px}
+  .tab.on{color:var(--ink);border-bottom-color:var(--indigo)}
+  .tab .b{font-size:10px;background:var(--indigo-soft);color:var(--indigo-deep);border-radius:20px;padding:1px 7px;font-weight:700}
+  .grid2{display:grid;grid-template-columns:1fr 312px;gap:22px;align-items:start}
+  .notes h3{font-size:14.5px;font-weight:700;margin:24px 0 10px}.notes h3:first-child{margin-top:0}
+  .notes p{font-size:14.5px;line-height:1.62;color:#3b3850;margin-bottom:9px}
+  .notes ul{list-style:none}
+  .notes li{font-size:14.5px;line-height:1.55;color:#3b3850;padding-left:18px;position:relative;margin-bottom:8px}
+  .notes li::before{content:"";position:absolute;left:3px;top:9px;width:5px;height:5px;border-radius:50%;background:var(--indigo)}
+  .ai-pill{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--indigo-deep);background:var(--indigo-soft);padding:5px 12px;border-radius:20px;margin-bottom:18px}
+  .ai-pill .s{width:6px;height:6px;border-radius:50%;background:var(--indigo)}
+  /* action items */
+  .ai-row{display:flex;align-items:center;gap:12px;padding:11px 10px;border-radius:11px;transition:.12s}
+  .ai-row:hover{background:var(--line-soft)}
+  .ai-row .cb{width:18px;height:18px;border-radius:6px;border:1.6px solid var(--line);flex-shrink:0;cursor:pointer}
+  .ai-row .txt{flex:1;font-size:14px;font-weight:500}
+  .who{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--indigo-deep);background:var(--indigo-soft);padding:3px 10px 3px 4px;border-radius:20px;cursor:pointer}
+  .who .av{width:18px;height:18px;border-radius:50%;color:#fff;display:grid;place-items:center;font-size:9.5px;font-weight:700}
+  .addai{display:flex;align-items:center;gap:10px;padding:10px;border:1px dashed var(--line);border-radius:11px;margin-top:6px;cursor:text}
+  .addai input{border:none;background:none;font-family:inherit;font-size:14px;color:var(--ink);outline:none;flex:1}
+  .addai .pl{color:var(--faint);font-size:14px;display:flex;align-items:center;gap:9px}
+  .scratch{padding:16px 18px}
+  .scratch .lb{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--faint);margin-bottom:9px}
+  .scratch textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:14px;line-height:1.55;color:var(--ink);resize:none;outline:none;background:var(--bg)}
+  .scratch textarea:focus{border-color:var(--indigo);background:var(--surface)}
+  .scard{padding:18px}
+  .scard .h{font-size:13px;font-weight:700;margin-bottom:3px}
+  .scard .d{font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:13px}
+  .sel{width:100%;border:1px solid var(--line);border-radius:11px;padding:10px 13px;font-size:13.5px;font-weight:600;background:var(--bg);display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+  .kv{display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:9px 0;border-bottom:1px solid var(--line-soft)}
+  .kv:last-child{border:none}.kv .k{color:var(--muted)}.kv .v{font-weight:600}
+
+  /* settings */
+  .srow{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:17px 20px;border-bottom:1px solid var(--line-soft)}
+  .srow:last-child{border:none}
+  .srow .t{font-size:14px;font-weight:600}
+  .srow .d{font-size:12.5px;color:var(--muted);margin-top:2px;max-width:460px;line-height:1.45}
+  .conn{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--green);background:var(--green-soft);padding:6px 12px;border-radius:20px}
+  .conn .d{width:7px;height:7px;border-radius:50%;background:var(--green)}
+
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(26,24,35,.4);display:none;align-items:center;justify-content:center;z-index:50;padding:24px;backdrop-filter:blur(2px)}
+  .ov.show{display:flex}
+  .modal{background:var(--surface);border-radius:var(--rl);width:560px;max-width:100%;max-height:86vh;overflow:auto;box-shadow:0 24px 70px rgba(26,24,35,.28)}
+  .mh{display:flex;align-items:center;justify-content:space-between;padding:20px 22px;border-bottom:1px solid var(--line)}
+  .mh .t{font-size:16.5px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .mh .x{border:none;background:var(--line-soft);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:17px;color:var(--muted)}
+  .mb{padding:18px 22px}
+  .fl{font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);margin:14px 0 7px}.fl:first-child{margin-top:0}
+  .task{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px}
+  .task .cb{width:18px;height:18px;border-radius:6px;background:var(--indigo);flex-shrink:0;display:grid;place-items:center}
+  .task .cb svg{width:11px;height:11px;fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+  .task .tt{flex:1;font-size:13.5px;font-weight:500}
+  .task .as{font-size:11.5px;font-weight:600;color:var(--indigo-deep);background:var(--indigo-soft);padding:3px 9px;border-radius:20px}
+  .task .dd{font-size:11.5px;color:var(--muted);min-width:30px;text-align:right}
+  .mf{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-top:1px solid var(--line);background:var(--bg)}
+  .mf .info{font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="side">
+    <div class="brand"><div class="mk"><div class="ring"></div></div><h1>glyph</h1></div>
+    <nav class="nav">
+      <button class="on" data-page="dashboard"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> Dashboard</button>
+      <button data-page="calendar"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg> Calendar</button>
+      <button data-page="notes"><svg class="ic" viewBox="0 0 24 24"><path d="M5 3h11l4 4v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M15 3v5h5M8 13h8M8 17h5"/></svg> Notes</button>
+      <button data-page="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.6 1.6 0 0 0 .3 1.8 2 2 0 1 1-2.8 2.8 1.6 1.6 0 0 0-2.7 1.1 2 2 0 1 1-4 0 1.6 1.6 0 0 0-2.7-1.1 2 2 0 1 1-2.8-2.8 1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1A2 2 0 1 1 1.7 9.7a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8A2 2 0 1 1 5.7 4.1a1.6 1.6 0 0 0 1.8.3h.1A1.6 1.6 0 0 0 8.6 3 2 2 0 1 1 12.6 3a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3 2 2 0 1 1 2.8 2.8 1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1A2 2 0 1 1 21 13.6a1.6 1.6 0 0 0-1.6 0z"/></svg> Settings</button>
+    </nav>
+    <button class="rec-cta" onclick="openMeeting(true)"><span class="dot"></span> Start recording</button>
+    <div class="sfoot"><div class="av">K</div><div><div class="nm">Khush</div><div class="su">OltaFlock AI</div></div></div>
+  </aside>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <section class="page show" id="page-dashboard">
+      <div class="ph">
+        <div><div class="hi">Good afternoon, Khush</div><div class="sub">Monday, 8 June · 2 meetings today</div></div>
+        <div class="acts">
+          <button class="btn" onclick="openMeeting(false)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New note</button>
+          <button class="btn primary" onclick="openMeeting(true)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/></svg> Start recording</button>
+        </div>
+      </div>
+
+      <div class="sech"><span class="t">Up next</span><a onclick="go('calendar')">View all <svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M9 6l6 6-6 6"/></svg></a></div>
+      <div class="card">
+        <div class="mrow">
+          <div class="time"><div class="t">3:30</div><div class="e">PM</div></div>
+          <div class="bd"><div class="ti">Sarthak Singapore — Priya review <span class="tag client">Client</span></div><div class="mta"><span class="badge"><span class="pdot" style="background:var(--green)"></span>Google Meet</span> · Vineeth, Amaan</div></div>
+          <div class="seg" title="Auto-record"><button class="on">Ask</button><button>Auto</button></div>
+        </div>
+        <div class="mrow">
+          <div class="time"><div class="t">5:00</div><div class="e">PM</div></div>
+          <div class="bd"><div class="ti">Founders weekly sync <span class="tag internal">Internal</span></div><div class="mta"><span class="badge"><span class="pdot" style="background:#4087E5"></span>Zoom</span> · Amaan, Vineeth, Khush</div></div>
+          <div class="seg" title="Auto-record"><button>Ask</button><button class="on">Auto</button></div>
+        </div>
+      </div>
+
+      <div class="sech"><span class="t">Recent notes</span><a onclick="go('notes')">View all <svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M9 6l6 6-6 6"/></svg></a></div>
+      <div class="card">
+        <div class="nrow" onclick="openMeeting(false)"><div class="dot" style="background:var(--indigo)"></div><div class="nt">Darshak Desai — CRM scope call</div><div class="nm">Today, 11:30 AM · 6 action items</div></div>
+        <div class="nrow" onclick="openMeeting(false)"><div class="dot" style="background:var(--green)"></div><div class="nt">Rise &amp; Shine — demo walkthrough</div><div class="nm">Yesterday · 4 action items</div></div>
+        <div class="nrow" onclick="openMeeting(false)"><div class="dot" style="background:var(--faint)"></div><div class="nt">SIMCA Advertising — proposal review</div><div class="nm">Fri · 9 action items</div></div>
+      </div>
+    </section>
+
+    <!-- CALENDAR -->
+    <section class="page" id="page-calendar">
+      <div class="ph">
+        <div><div class="hi">Calendar</div><div class="sub">Upcoming meetings · auto-detected video links</div></div>
+        <span class="conn"><span class="d"></span> Google Calendar</span>
+      </div>
+
+      <div class="sech"><span class="t">Today · Mon 8 June</span></div>
+      <div class="card" style="margin-bottom:8px">
+        <div class="mrow">
+          <div class="time"><div class="t">3:30</div><div class="e">PM</div></div>
+          <div class="bd"><div class="ti">Sarthak Singapore — Priya review <span class="tag client">Client</span></div><div class="mta"><span class="badge"><span class="pdot" style="background:var(--green)"></span>Google Meet</span> · 30 min · Vineeth, Amaan</div></div>
+          <div class="seg"><button class="on">Ask</button><button>Auto</button></div>
+          <button class="btn sm" onclick="openMeeting(true)">Record</button>
+        </div>
+        <div class="mrow">
+          <div class="time"><div class="t">5:00</div><div class="e">PM</div></div>
+          <div class="bd"><div class="ti">Founders weekly sync <span class="tag internal">Internal</span></div><div class="mta"><span class="badge"><span class="pdot" style="background:#4087E5"></span>Zoom</span> · 45 min · Amaan, Vineeth</div></div>
+          <div class="seg"><button>Ask</button><button class="on">Auto</button></div>
+          <button class="btn sm" onclick="openMeeting(true)">Record</button>
+        </div>
+      </div>
+
+      <div class="sech"><span class="t">Tomorrow · Tue 9 June</span></div>
+      <div class="card" style="margin-bottom:8px">
+        <div class="mrow">
+          <div class="time"><div class="t">11:00</div><div class="e">AM</div></div>
+          <div class="bd"><div class="ti">Darshak Desai — CRM kickoff <span class="tag client">Client</span></div><div class="mta"><span class="badge"><span class="pdot" style="background:var(--green)"></span>Google Meet</span> · 60 min · Darshak</div></div>
+          <div class="seg"><button class="on">Ask</button><button>Auto</button></div>
+          <button class="btn sm">Record</button>
+        </div>
+        <div class="mrow">
+          <div class="time"><div class="t">4:00</div><div class="e">PM</div></div>
+          <div class="bd"><div class="ti">Rise &amp; Shine — voice agent demo <span class="tag client">Client</span></div><div class="mta"><span class="badge"><span class="pdot">●</span>No video link</span> · 30 min · in person</div></div>
+          <div class="seg"><button class="on">Ask</button><button>Auto</button></div>
+          <button class="btn sm">Record</button>
+        </div>
+      </div>
+
+      <div class="sech"><span class="t">Wed 10 June</span></div>
+      <div class="card">
+        <div class="mrow">
+          <div class="time"><div class="t">2:00</div><div class="e">PM</div></div>
+          <div class="bd"><div class="ti">SIMCA — platform scope review <span class="tag client">Client</span></div><div class="mta"><span class="badge"><span class="pdot" style="background:#4087E5"></span>Zoom</span> · 45 min</div></div>
+          <div class="seg"><button class="on">Ask</button><button>Auto</button></div>
+          <button class="btn sm">Record</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- NOTES -->
+    <section class="page" id="page-notes">
+      <div class="ph">
+        <div><div class="hi">Notes</div><div class="sub">14 meetings this week</div></div>
+        <button class="btn" onclick="openMeeting(false)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New note</button>
+      </div>
+      <div class="sech"><span class="t">Today</span></div>
+      <div class="card" style="margin-bottom:8px">
+        <div class="nrow" onclick="openMeeting(false)"><div class="dot" style="background:var(--indigo)"></div><div class="nt">Darshak Desai — CRM scope call <span class="tag client" style="margin-left:6px">Client</span></div><div class="nm">11:30 AM · 6 action items</div></div>
+      </div>
+      <div class="sech"><span class="t">Yesterday</span></div>
+      <div class="card" style="margin-bottom:8px">
+        <div class="nrow" onclick="openMeeting(false)"><div class="dot" style="background:var(--green)"></div><div class="nt">Rise &amp; Shine — demo walkthrough <span class="tag client" style="margin-left:6px">Client</span></div><div class="nm">5:40 PM · 4 action items</div></div>
+        <div class="nrow" onclick="openMeeting(false)"><div class="dot" style="background:var(--faint)"></div><div class="nt">Internal — content planning</div><div class="nm">10:05 AM · 3 action items</div></div>
+      </div>
+      <div class="sech"><span class="t">Fri 5 June</span></div>
+      <div class="card">
+        <div class="nrow" onclick="openMeeting(false)"><div class="dot" style="background:var(--faint)"></div><div class="nt">SIMCA Advertising — proposal review <span class="tag client" style="margin-left:6px">Client</span></div><div class="nm">2:00 PM · 9 action items</div></div>
+      </div>
+    </section>
+
+    <!-- MEETING DETAIL -->
+    <section class="page" id="page-meeting">
+      <div class="mt-top">
+        <div style="flex:1"><input class="ttl" value="Sarthak Singapore — Priya review" spellcheck="false"><div class="meta" id="mtMeta"><span class="recd">● Recording 04:12</span> · mic + system audio · 3 speakers</div></div>
+        <div class="ctrls">
+          <div class="seg" title="Language"><button class="on">Auto</button><button>हिं</button><button>EN</button></div>
+          <div class="seg" title="Engine"><button class="on">Cloud</button><button>Private</button></div>
+          <button class="recbtn"><span class="pd"></span> Stop</button>
+        </div>
+      </div>
+      <div class="tabs"><div class="tab on" data-mtab="notes">Notes <span class="b">AI</span></div><div class="tab" data-mtab="transcript">Transcript</div></div>
+
+      <div id="mtab-notes">
+        <div class="grid2">
+          <div>
+            <div class="ai-pill"><span class="s"></span> Cleaned by Claude Haiku 4.5 · language preserved</div>
+            <div class="card" style="padding:22px 24px">
+              <div class="notes">
+                <h3>Summary</h3>
+                <p>Reviewed the Priya voice agent for Singapore Miracle. Main blocker is Devanagari pronunciation on the fast model tier. Agreed to lock the model choice this week and ship the Cal.com booking flow to a live test.</p>
+                <h3>Key points</h3>
+                <ul>
+                  <li>Matra corruption still appears on the fastest model — needs the phonetic fallback layer.</li>
+                  <li class="dev">साइट विज़िट बुकिंग का flow Cal.com से जोड़ना है — टेस्ट इसी हफ़्ते।</li>
+                  <li>Input-gain fix reduced PSTN background noise; acceptable for the demo.</li>
+                </ul>
+              </div>
+              <h3 style="font-size:14.5px;font-weight:700;margin:24px 0 8px">Action items</h3>
+              <div>
+                <div class="ai-row"><div class="cb"></div><div class="txt">Finalise phonetic dictionary for English loanwords</div><span class="who"><span class="av" style="background:var(--indigo)">K</span> Khush</span></div>
+                <div class="ai-row"><div class="cb"></div><div class="txt">Wire Cal.com booking + confirmation message</div><span class="who"><span class="av" style="background:var(--green)">V</span> Vineeth</span></div>
+                <div class="ai-row"><div class="cb"></div><div class="txt">Share noise samples from last 3 live calls</div><span class="who"><span class="av" style="background:var(--amber)">A</span> Amaan</span></div>
+                <div id="aiExtra"></div>
+                <div class="addai" id="addAiBox" onclick="focusAdd()">
+                  <span class="pl" id="addPl"><svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg> Add an action item manually</span>
+                  <input id="addAiInput" placeholder="Type a task and press Enter…" style="display:none">
+                  <span class="who" id="addWho" style="display:none"><span class="av" style="background:var(--indigo)">K</span> Khush</span>
+                </div>
+              </div>
+              <div style="margin-top:16px;display:flex;justify-content:flex-end">
+                <button class="btn lime" onclick="openAsana()"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><circle cx="12" cy="6.5" r="2.6"/><circle cx="6.5" cy="15" r="2.6"/><circle cx="17.5" cy="15" r="2.6"/></svg> Send action items to Asana</button>
+              </div>
+            </div>
+          </div>
+          <aside>
+            <div class="card scratch" style="margin-bottom:18px"><div class="lb">Your notes</div><textarea placeholder="Jot anything — it gets folded into the clean notes.&#10;&#10;– lock model choice this week&#10;– Cal.com test before Fri"></textarea></div>
+            <div class="card scard">
+              <div class="h">Linked Asana project</div><div class="d">Action items route here when sent.</div>
+              <div class="sel" style="margin-bottom:12px">Sarthak Singapore <svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M6 9l6 6 6-6"/></svg></div>
+              <div class="kv"><span class="k">Type</span><span class="v">Client</span></div>
+              <div class="kv"><span class="k">Engine</span><span class="v">Cloud · Scribe v2</span></div>
+              <div class="kv"><span class="k">Saved</span><span class="v">On this Mac</span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <div id="mtab-transcript" style="display:none">
+        <div class="card" style="padding:22px 24px;max-width:720px">
+          <div style="display:flex;gap:13px;margin-bottom:16px"><div style="width:28px;height:28px;border-radius:8px;background:var(--indigo);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;flex-shrink:0">K</div><div><div style="font-size:12px;color:var(--faint);margin-bottom:2px">Speaker 1 · 2:14</div><div style="font-size:14.5px;line-height:1.55;color:#3b3850">Okay so the main issue is still the pronunciation — the matras get dropped on the fast model.</div></div></div>
+          <div style="display:flex;gap:13px;margin-bottom:16px"><div style="width:28px;height:28px;border-radius:8px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;flex-shrink:0">V</div><div><div style="font-size:12px;color:var(--faint);margin-bottom:2px">Speaker 2 · 2:31</div><div class="dev" style="font-size:14px;line-height:1.7;color:#3b3850">हाँ, और जब वो "site visit" बोलती है तो ठीक से नहीं आता। हमें एक phonetic layer चाहिए loanwords के लिए।</div></div></div>
+          <div style="display:flex;gap:13px"><div style="width:28px;height:28px;border-radius:8px;background:var(--indigo);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;flex-shrink:0">K</div><div><div style="font-size:12px;color:var(--faint);margin-bottom:2px">Speaker 1 · 3:02</div><div style="font-size:14.5px;line-height:1.55;color:#3b3850">Right — lock the bigger model for Hindi, keep the fast one only for English.</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="page" id="page-settings">
+      <div class="ph"><div><div class="hi">Settings</div><div class="sub">Engines, integrations & privacy</div></div></div>
+      <div class="sech"><span class="t">Transcription & analysis</span></div>
+      <div class="card">
+        <div class="srow"><div><div class="t">Transcription engine</div><div class="d">Cloud uses ElevenLabs Scribe v2 (~$0.28/hr, best accuracy). Private Mode runs Whisper locally — nothing leaves your Mac.</div></div><div class="seg"><button class="on">Cloud</button><button>Private</button></div></div>
+        <div class="srow"><div><div class="t">Analysis model</div><div class="d">Haiku 4.5 for everyday notes (~2¢/meeting). Sonnet 4.6 for sharper action items on important calls.</div></div><div class="seg"><button class="on">Haiku 4.5</button><button>Sonnet 4.6</button></div></div>
+        <div class="srow"><div><div class="t">Language</div><div class="d">Auto-detect handles Hindi, English and Hinglish. Transcripts keep their original script — never translated.</div></div><div class="seg"><button class="on">Auto</button><button>हिं</button><button>EN</button></div></div>
+      </div>
+      <div class="sech"><span class="t">Integrations</span></div>
+      <div class="card">
+        <div class="srow"><div><div class="t">Google Calendar</div><div class="d">Pulls upcoming meetings and detects video links to trigger recording.</div></div><span class="conn"><span class="d"></span> Connected</span></div>
+        <div class="srow"><div><div class="t">Asana</div><div class="d">Push action items as tasks with assignees and due dates, into client or internal projects.</div></div><span class="conn"><span class="d"></span> Connected</span></div>
+      </div>
+      <div class="sech"><span class="t">Recording & privacy</span></div>
+      <div class="card">
+        <div class="srow"><div><div class="t">Auto-record meetings</div><div class="d">For calendar meetings with a video link. "Ask first" shows a one-tap prompt at start time.</div></div><div class="seg"><button class="on">Ask first</button><button>Auto all</button></div></div>
+        <div class="srow"><div><div class="t">Audio retention</div><div class="d">Keep recordings, or delete audio automatically once a meeting is transcribed.</div></div><div class="seg"><button>Keep</button><button class="on">Delete after</button></div></div>
+        <div class="srow"><div><div class="t">Permissions</div><div class="d">Microphone, system audio, and calendar access.</div></div><span class="conn"><span class="d"></span> All granted</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ASANA MODAL -->
+<div class="ov" id="asanaModal">
+  <div class="modal">
+    <div class="mh"><div class="t"><svg class="ic" viewBox="0 0 24 24" style="width:18px;height:18px;color:var(--indigo)"><circle cx="12" cy="6.5" r="2.6"/><circle cx="6.5" cy="15" r="2.6"/><circle cx="17.5" cy="15" r="2.6"/></svg> Send action items to Asana</div><button class="x" onclick="closeAsana()">×</button></div>
+    <div class="mb">
+      <div class="fl">Project</div>
+      <div class="sel">Sarthak Singapore (Client) <svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="fl">Tasks to create</div>
+      <div class="task"><div class="cb"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div><div class="tt">Finalise phonetic dictionary for loanwords</div><span class="as">Khush</span><span class="dd">Wed</span></div>
+      <div class="task"><div class="cb"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div><div class="tt">Wire Cal.com booking + confirmation</div><span class="as">Vineeth</span><span class="dd">Fri</span></div>
+      <div class="task"><div class="cb"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div><div class="tt">Share noise samples from last 3 calls</div><span class="as">Amaan</span><span class="dd">—</span></div>
+    </div>
+    <div class="mf"><div class="info">3 tasks · linked back to this meeting</div><button class="btn primary" onclick="closeAsana()">Create 3 tasks</button></div>
+  </div>
+</div>
+
+<script>
+  function go(p){
+    document.querySelectorAll('.page').forEach(x=>x.classList.remove('show'));
+    document.getElementById('page-'+p).classList.add('show');
+    document.querySelectorAll('.nav button[data-page]').forEach(b=>b.classList.toggle('on',b.dataset.page===p));
+    document.querySelector('.main').scrollTop=0;
+  }
+  document.querySelectorAll('.nav button[data-page]').forEach(b=>b.onclick=()=>go(b.dataset.page));
+  function openMeeting(recording){
+    go('meeting');
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('on'));
+    document.getElementById('mtMeta').innerHTML = recording
+      ? '<span class="recd">● Recording 00:03</span> · mic + system audio'
+      : 'Manual note · not recording';
+  }
+  document.querySelectorAll('.tab[data-mtab]').forEach(t=>t.onclick=()=>{
+    document.querySelectorAll('.tab[data-mtab]').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+    document.getElementById('mtab-notes').style.display=t.dataset.mtab==='notes'?'block':'none';
+    document.getElementById('mtab-transcript').style.display=t.dataset.mtab==='transcript'?'block':'none';
+  });
+  document.querySelectorAll('.seg').forEach(s=>s.querySelectorAll('button').forEach(b=>b.onclick=()=>{s.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on')}));
+  function openAsana(){document.getElementById('asanaModal').classList.add('show')}
+  function closeAsana(){document.getElementById('asanaModal').classList.remove('show')}
+  document.getElementById('asanaModal').addEventListener('click',e=>{if(e.target.id==='asanaModal')closeAsana()});
+  // manual action item
+  function focusAdd(){
+    document.getElementById('addPl').style.display='none';
+    const i=document.getElementById('addAiInput');const w=document.getElementById('addWho');
+    i.style.display='block';w.style.display='inline-flex';i.focus();
+  }
+  document.getElementById('addAiInput').addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&e.target.value.trim()){
+      const row=document.createElement('div');row.className='ai-row';
+      row.innerHTML='<div class="cb"></div><div class="txt">'+e.target.value.replace(/</g,'&lt;')+'</div><span class="who"><span class="av" style="background:var(--indigo)">K</span> Khush</span>';
+      document.getElementById('aiExtra').appendChild(row);e.target.value='';
+    }
+  });
+</script>
+</body>
+</html>

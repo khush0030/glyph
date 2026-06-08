@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm -v)",
+      "Bash(echo \"pnpm: $\\(pnpm -v || echo MISSING\\)\")",
+      "Bash(npm -v)",
+      "Bash(echo \"npm: $\\(npm -v || echo MISSING\\)\")",
+      "Bash(rustc --version)",
+      "Bash(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)",
+      "Bash(sh -s -- -y --default-toolchain stable)"
+    ]
+  }
+}

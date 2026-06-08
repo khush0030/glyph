@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Glyph",
+  "version": "0.0.0",
+  "identifier": "ai.oltaflock.glyph",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Glyph",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 940,
+        "minHeight": 640,
+        "resizable": true,
+        "titleBarStyle": "Transparent"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "app",
+    "category": "Productivity",
+    "icon": ["icons/icon.icns"],
+    "macOS": {
+      "minimumSystemVersion": "14.4"
+    },
+    "externalBin": []
+  }
+}

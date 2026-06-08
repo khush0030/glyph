@@ -1,0 +1,11 @@
+<svg width="120" height="30" viewBox="0 0 120 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="glyphMark" x1="3" y1="0" x2="27" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#241C45"/>
+      <stop offset="1" stop-color="#48368E"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="30" height="30" rx="9" fill="url(#glyphMark)"/>
+  <circle cx="15" cy="15" r="6.5" fill="none" stroke="#C6F24E" stroke-width="2.5"/>
+  <text x="40" y="22" font-family="'Plus Jakarta Sans', sans-serif" font-size="19" font-weight="800" letter-spacing="-0.6" fill="#1A1823">glyph</text>
+</svg>

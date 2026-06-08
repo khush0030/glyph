@@ -1,0 +1,25 @@
+[package]
+name = "glyph"
+version = "0.0.0"
+description = "Glyph — desktop-first macOS meeting notetaker"
+authors = ["OltaFlock AI"]
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+keyring = { version = "3", features = ["apple-native"] }
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+# Tauri v2: custom-protocol is enabled for release builds by the CLI.
+custom-protocol = ["tauri/custom-protocol"]
