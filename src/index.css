@@ -29,26 +29,26 @@
 }
 
 .dark {
-  --c-bg: 19 17 25;
-  --c-surface: 28 26 38;
-  --c-ink: 236 235 242;
-  --c-prose: 201 198 214;
-  --c-muted: 157 154 172;
-  --c-faint: 110 107 126;
-  --c-line: 44 42 56;
-  --c-line-soft: 35 33 48;
-  --c-indigo: 138 124 245;
-  --c-indigo-deep: 173 162 247;
-  --c-indigo-soft: 40 34 72;
+  --c-bg: 17 16 23;
+  --c-surface: 31 29 42;
+  --c-ink: 240 239 245;
+  --c-prose: 208 205 220;
+  --c-muted: 173 170 188;
+  --c-faint: 128 125 144;
+  --c-line: 52 49 68;
+  --c-line-soft: 40 38 53;
+  --c-indigo: 141 128 246;
+  --c-indigo-deep: 187 178 250;
+  --c-indigo-soft: 46 40 82;
   --c-lime: 198 242 78;
   --c-lime-deep: 63 88 7;
-  --c-rec: 255 95 100;
-  --c-rec-soft: 58 33 34;
-  --c-green: 70 184 131;
-  --c-green-soft: 23 49 39;
-  --c-amber: 224 163 64;
-  --c-amber-soft: 58 46 24;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.36);
+  --c-rec: 255 99 104;
+  --c-rec-soft: 62 36 37;
+  --c-green: 76 196 140;
+  --c-green-soft: 24 53 42;
+  --c-amber: 232 170 72;
+  --c-amber-soft: 62 49 27;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.42);
 }
 
 @layer base {

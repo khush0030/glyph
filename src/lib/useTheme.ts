@@ -25,10 +25,18 @@ function emit() {
   for (const s of subs) s(current);
 }
 
-// Follow the OS while in "system" mode.
+// Follow the OS while in "system" mode (re-apply and notify consumers so a
+// sidebar toggle reflecting the resolved light/dark state stays in sync).
 mql().addEventListener("change", () => {
-  if (current === "system") apply(current);
+  if (current === "system") {
+    apply(current);
+    emit();
+  }
 });
+
+function resolveDark(t: Theme) {
+  return t === "dark" || (t === "system" && mql().matches);
+}
 
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(current);
@@ -63,5 +71,9 @@ export function useTheme() {
     commands.setSettings({ [KEY]: t }).catch(() => {});
   };
 
-  return { theme, setTheme };
+  const isDark = resolveDark(theme);
+  // Flip to the opposite of whatever is showing (collapses "system" to explicit).
+  const toggle = () => setTheme(isDark ? "light" : "dark");
+
+  return { theme, setTheme, isDark, toggle };
 }

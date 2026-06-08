@@ -6,6 +6,24 @@ import {
   SettingsIcon,
 } from "./Icons";
 import type { Page } from "../App";
+import { useTheme } from "../lib/useTheme";
+
+function SunIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`ic ${className}`}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  );
+}
+
+function MoonIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`ic ${className}`}>
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
 
 const NAV: { page: Page; label: string; Icon: typeof DashboardIcon }[] = [
   { page: "dashboard", label: "Dashboard", Icon: DashboardIcon },
@@ -29,6 +47,7 @@ export default function Sidebar({
 }) {
   // Meeting view is reached via actions, not nav — no nav item highlights then.
   const navActive = NAV.some((n) => n.page === page) ? page : null;
+  const { isDark, toggle } = useTheme();
   return (
     <aside className="bg-surface border-r border-line flex flex-col px-[14px] py-[22px]">
       <Brand />
@@ -64,7 +83,7 @@ export default function Sidebar({
         <button
           type="button"
           onClick={onRecord}
-          className="mt-auto flex items-center justify-center gap-[9px] bg-ink text-white border-none font-sans text-[14px] font-semibold p-[13px] rounded-[13px] cursor-pointer transition-[0.18s] hover:-translate-y-[1px]"
+          className="mt-auto flex items-center justify-center gap-[9px] bg-ink text-surface border-none font-sans text-[14px] font-semibold p-[13px] rounded-[13px] cursor-pointer transition-[0.18s] hover:-translate-y-[1px]"
         >
           <span className="w-2 h-2 rounded-full bg-rec" /> Start recording
         </button>
@@ -78,6 +97,19 @@ export default function Sidebar({
           <div className="text-[13px] font-semibold">Khush</div>
           <div className="text-[11px] text-faint">OltaFlock AI</div>
         </div>
+        <button
+          type="button"
+          onClick={toggle}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          className="ml-auto grid place-items-center w-[32px] h-[32px] rounded-[9px] border border-line text-muted hover:text-ink hover:border-faint transition-colors"
+        >
+          {isDark ? (
+            <SunIcon className="w-[16px] h-[16px]" />
+          ) : (
+            <MoonIcon className="w-[16px] h-[16px]" />
+          )}
+        </button>
       </div>
     </aside>
   );
