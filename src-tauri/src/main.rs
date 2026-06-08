@@ -52,6 +52,10 @@ fn main() {
             audio::start_recording,
             audio::stop_recording,
             notes::generate_notes,
+            calendar::calendar_connected,
+            calendar::calendar_connect,
+            calendar::calendar_disconnect,
+            calendar::calendar_upcoming,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glyph");

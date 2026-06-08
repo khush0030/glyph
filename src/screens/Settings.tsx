@@ -87,6 +87,7 @@ export default function Settings() {
       <Credentials
         status={creds.status}
         available={creds.available}
+        error={creds.error}
         onChanged={creds.refresh}
       />
 

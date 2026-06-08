@@ -43,10 +43,12 @@ const FIELDS: Field[] = [
 export default function Credentials({
   status,
   available,
+  error,
   onChanged,
 }: {
   status: Record<string, boolean>;
   available: boolean;
+  error?: string | null;
   onChanged: () => void;
 }) {
   return (
@@ -55,6 +57,13 @@ export default function Credentials({
         <div className="px-4 py-3 rounded-r text-[12.5px] text-amber bg-amber-soft border border-amber/20">
           Keychain is only reachable in the desktop app — run{" "}
           <span className="font-semibold">pnpm tauri dev</span> to save keys.
+        </div>
+      )}
+      {available && error && (
+        <div className="px-4 py-3 rounded-r text-[12.5px] text-rec bg-rec-soft">
+          Couldn’t read the Keychain: {error}. If macOS is asking for your “login”
+          keychain password and rejecting it, your login keychain is out of sync —
+          reset it in Keychain Access, then reopen Glyph.
         </div>
       )}
       {FIELDS.map((f) => (

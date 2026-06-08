@@ -30,7 +30,9 @@ export default function App() {
           {page === "dashboard" && (
             <Dashboard onNavigate={setPage} onOpenMeeting={openMeeting} />
           )}
-          {page === "calendar" && <Calendar onNavigate={setPage} />}
+          {page === "calendar" && (
+            <Calendar onNavigate={setPage} onOpenMeeting={openMeeting} />
+          )}
           {page === "notes" && <Notes onOpenMeeting={openMeeting} />}
           {page === "meeting" && <Meeting recording={meetingRecording} />}
           {page === "settings" && <Settings />}

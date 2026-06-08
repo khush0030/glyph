@@ -26,13 +26,17 @@ export const commands = {
   setSettings: (kv: Record<string, string>) => invoke("set_settings", { kv }),
   checkPermissions: () => invoke("check_permissions"),
   openPermissionSettings: () => invoke("open_permission_settings"),
-  calendarConnect: () => invoke("calendar_connect"),
-  calendarUpcoming: () => invoke("calendar_upcoming"),
   asanaConnect: () => invoke("asana_connect"),
   asanaProjects: () => invoke("asana_projects"),
   asanaUsers: () => invoke("asana_users"),
   asanaCreateTasks: (noteId: string, projectGid: string, items: unknown[]) =>
     invoke<number>("asana_create_tasks", { noteId, projectGid, items }),
+
+  // Calendar — Google Calendar via OAuth (PKCE).
+  calendarConnected: () => invoke<boolean>("calendar_connected"),
+  calendarConnect: () => invoke<void>("calendar_connect"),
+  calendarDisconnect: () => invoke<void>("calendar_disconnect"),
+  calendarUpcoming: () => invoke<CalendarEvent[]>("calendar_upcoming"),
 
   // Notes — fold transcript + scratch into structured notes via Claude.
   generateNotes: (transcript: string, scratch: string, model?: AnalysisModelId) =>
@@ -46,6 +50,17 @@ export const commands = {
   credentialStatus: () =>
     invoke<CredentialStatus[]>("credential_status"),
 };
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  startTs: number; // epoch ms
+  endTs: number;
+  link: string | null;
+  platform: string | null;
+  attendees: string[];
+  autoRecord: string;
+}
 
 export type AnalysisModelId = "claude-haiku-4-5" | "claude-sonnet-4-6";
 
