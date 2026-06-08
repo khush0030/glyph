@@ -6,7 +6,7 @@ import Transcript from "../components/Transcript";
 import AsanaModal from "../components/AsanaModal";
 import { useRecording } from "../lib/useRecording";
 import { useTranscript, type Segment } from "../lib/useTranscript";
-import { commands, type NoteDetail, type GeneratedActionItem } from "../lib/ipc";
+import { commands, type NoteDetail } from "../lib/ipc";
 
 type Tab = "notes" | "transcript";
 
@@ -131,8 +131,6 @@ export default function Meeting({
     onDeleted();
   }
 
-  const asanaItems: GeneratedActionItem[] =
-    note?.actionItems.map((a) => ({ text: a.text, assignee: a.assignee, dueHint: a.dueHint })) ?? [];
 
   return (
     <div className="animate-fade">
@@ -243,7 +241,14 @@ export default function Meeting({
         <Transcript segments={displaySegments} partial={tx.partial} recording={rec.recording} />
       )}
 
-      {asanaOpen && <AsanaModal items={asanaItems} onClose={() => setAsanaOpen(false)} />}
+      {asanaOpen && note && (
+        <AsanaModal
+          noteId={noteId}
+          items={note.actionItems}
+          onClose={() => setAsanaOpen(false)}
+          onSent={reload}
+        />
+      )}
     </div>
   );
 }

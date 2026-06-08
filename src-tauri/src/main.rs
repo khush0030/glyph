@@ -68,6 +68,10 @@ fn main() {
             store::notes_cmds::set_recording_result,
             store::notes_cmds::delete_note,
             store::notes_cmds::delete_audio,
+            asana::asana_workspaces,
+            asana::asana_projects,
+            asana::asana_users,
+            asana::asana_create_tasks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glyph");

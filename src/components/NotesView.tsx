@@ -1,7 +1,8 @@
-import ActionItems, { type DisplayActionItem } from "./ActionItems";
+import ActionItems from "./ActionItems";
 import { Btn } from "./ui";
 import { AsanaIcon } from "./Icons";
 import { isDevanagari } from "../lib/useTranscript";
+import type { StoredActionItem } from "../lib/ipc";
 
 export interface GeneratedDisplay {
   summary: string;
@@ -25,7 +26,7 @@ export default function NotesView({
   onOpenAsana,
 }: {
   generated: GeneratedDisplay | null;
-  actionItems: DisplayActionItem[];
+  actionItems: StoredActionItem[];
   generating: boolean;
   error: string | null;
   canGenerate: boolean;
@@ -117,7 +118,17 @@ export default function NotesView({
           </button>
         )}
       </div>
-      <ActionItems items={actionItems} onAdd={onAddActionItem} onDelete={onDeleteActionItem} />
+      <ActionItems
+        items={actionItems.map((a) => ({
+          id: a.id,
+          text: a.text,
+          assignee: a.assignee,
+          dueHint: a.dueHint,
+          sent: !!a.asanaGid,
+        }))}
+        onAdd={onAddActionItem}
+        onDelete={onDeleteActionItem}
+      />
 
       {actionItems.length > 0 && (
         <div className="mt-4 flex justify-end">

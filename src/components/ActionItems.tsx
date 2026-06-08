@@ -7,6 +7,7 @@ export interface DisplayActionItem {
   text: string;
   assignee?: string;
   dueHint?: string;
+  sent?: boolean;
 }
 
 function Row({
@@ -23,6 +24,11 @@ function Row({
       <div className={`flex-1 text-[14px] font-medium ${isDevanagari(item.text) ? "dev" : ""}`}>
         {item.text}
       </div>
+      {item.sent && (
+        <span className="text-[10.5px] font-semibold text-green bg-green-soft px-[8px] py-[2px] rounded-[20px]">
+          ✓ Asana
+        </span>
+      )}
       {item.dueHint && <span className="text-[11.5px] text-muted">{item.dueHint}</span>}
       {av && (
         <span className="inline-flex items-center gap-[6px] text-[12px] font-semibold text-indigo-deep bg-indigo-soft pl-1 pr-[10px] py-[3px] rounded-[20px]">

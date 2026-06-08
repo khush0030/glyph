@@ -42,11 +42,19 @@ export const commands = {
   setSettings: (kv: Record<string, string>) => invoke("set_settings", { kv }),
   checkPermissions: () => invoke("check_permissions"),
   openPermissionSettings: () => invoke("open_permission_settings"),
-  asanaConnect: () => invoke("asana_connect"),
-  asanaProjects: () => invoke("asana_projects"),
-  asanaUsers: () => invoke("asana_users"),
-  asanaCreateTasks: (noteId: string, projectGid: string, items: unknown[]) =>
-    invoke<number>("asana_create_tasks", { noteId, projectGid, items }),
+  // Asana (Personal Access Token).
+  asanaWorkspaces: () => invoke<AsanaIdName[]>("asana_workspaces"),
+  asanaProjects: (workspace: string) =>
+    invoke<AsanaIdName[]>("asana_projects", { workspace }),
+  asanaUsers: (workspace: string) =>
+    invoke<AsanaUser[]>("asana_users", { workspace }),
+  asanaCreateTasks: (
+    noteId: string,
+    projectGid: string,
+    workspace: string,
+    items: AsanaTaskIn[]
+  ) =>
+    invoke<number>("asana_create_tasks", { noteId, projectGid, workspace, items }),
 
   // Calendar — Google Calendar via OAuth (PKCE).
   calendarConnected: () => invoke<boolean>("calendar_connected"),
@@ -76,6 +84,24 @@ export interface CalendarEvent {
   platform: string | null;
   attendees: string[];
   autoRecord: string;
+}
+
+export interface AsanaIdName {
+  gid: string;
+  name: string;
+}
+
+export interface AsanaUser {
+  gid: string;
+  name: string;
+  email: string | null;
+}
+
+export interface AsanaTaskIn {
+  actionItemId: string;
+  text: string;
+  assigneeGid?: string;
+  dueOn?: string;
 }
 
 export type AnalysisModelId = "claude-haiku-4-5" | "claude-sonnet-4-6";
