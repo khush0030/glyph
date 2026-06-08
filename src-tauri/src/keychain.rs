@@ -14,6 +14,7 @@
 //! Keep it out of the repo (it is gitignored). See CLAUDE.md rule #1.
 #![allow(dead_code)]
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use keyring::Entry;
@@ -25,6 +26,8 @@ const SERVICE: &str = "ai.oltaflock.glyph";
 pub enum KeychainError {
     #[error("keyring error: {0}")]
     Keyring(#[from] keyring::Error),
+    #[error("credential store: {0}")]
+    Sidecar(String),
 }
 
 /// Candidate `.env` locations, in priority order.
@@ -92,20 +95,63 @@ fn read_from_env(account: &str) -> Option<String> {
     parse_env(&content, &key).filter(|v| !v.is_empty())
 }
 
-/// Store a secret for `account` (e.g. "anthropic_api_key"). No-op in env-only
-/// mode — there the `.env` file is the source of truth, edited by hand.
+/// Writable secret store used in env-only mode. Holds secrets the app generates
+/// at runtime (e.g. OAuth tokens) which can't live in the hand-edited `.env`.
+/// `chmod 600` JSON next to the app database.
+fn sidecar_path() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    Some(
+        PathBuf::from(home)
+            .join("Library/Application Support")
+            .join(SERVICE)
+            .join("secrets.json"),
+    )
+}
+
+fn load_sidecar() -> HashMap<String, String> {
+    sidecar_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_sidecar(map: &HashMap<String, String>) -> Result<(), KeychainError> {
+    let path = sidecar_path().ok_or_else(|| KeychainError::Sidecar("no HOME directory".into()))?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| KeychainError::Sidecar(e.to_string()))?;
+    }
+    let json = serde_json::to_string_pretty(map).map_err(|e| KeychainError::Sidecar(e.to_string()))?;
+    std::fs::write(&path, json).map_err(|e| KeychainError::Sidecar(e.to_string()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+/// Store a secret for `account` (e.g. "anthropic_api_key"). In env-only mode it
+/// goes to the writable sidecar store; otherwise to the macOS Keychain.
 pub fn set(account: &str, secret: &str) -> Result<(), KeychainError> {
     if env_only_mode() {
-        return Ok(());
+        let mut map = load_sidecar();
+        map.insert(account.to_string(), secret.to_string());
+        return save_sidecar(&map);
     }
     Entry::new(SERVICE, account)?.set_password(secret)?;
     Ok(())
 }
 
-/// Fetch a secret; `Ok(None)` if it is not set anywhere.
+/// Fetch a secret; `Ok(None)` if it is not set anywhere. Order:
+/// process env var -> `.env` file -> sidecar store -> Keychain.
 pub fn get(account: &str) -> Result<Option<String>, KeychainError> {
     if let Some(v) = read_from_env(account) {
         return Ok(Some(v));
+    }
+    if let Some(v) = load_sidecar().get(account) {
+        if !v.is_empty() {
+            return Ok(Some(v.clone()));
+        }
     }
     if env_only_mode() {
         return Ok(None);
@@ -117,10 +163,13 @@ pub fn get(account: &str) -> Result<Option<String>, KeychainError> {
     }
 }
 
-/// Remove a secret; succeeds even if it was already absent. No-op in env-only
-/// mode (the `.env` file is edited by hand).
+/// Remove a secret; succeeds even if it was already absent.
 pub fn delete(account: &str) -> Result<(), KeychainError> {
     if env_only_mode() {
+        let mut map = load_sidecar();
+        if map.remove(account).is_some() {
+            save_sidecar(&map)?;
+        }
         return Ok(());
     }
     match Entry::new(SERVICE, account)?.delete_credential() {
