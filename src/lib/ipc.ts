@@ -40,6 +40,8 @@ export const commands = {
   deleteAudio: (id: string) => invoke<void>("delete_audio", { id }),
   getSettings: () => invoke<Record<string, string>>("get_settings"),
   setSettings: (kv: Record<string, string>) => invoke("set_settings", { kv }),
+  openPrivacySettings: (pane: "microphone" | "screen") =>
+    invoke<void>("open_privacy_settings", { pane }),
   checkPermissions: () => invoke("check_permissions"),
   openPermissionSettings: () => invoke("open_permission_settings"),
   // Asana (Personal Access Token).

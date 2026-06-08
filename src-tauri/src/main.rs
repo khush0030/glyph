@@ -44,6 +44,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::health_check,
+            commands::open_privacy_settings,
             commands::get_settings,
             commands::set_settings,
             credentials::set_credential,

@@ -18,10 +18,14 @@ export default function Sidebar({
   page,
   onNavigate,
   onRecord,
+  recordingActive,
+  onReturnToRecording,
 }: {
   page: Page;
   onNavigate: (p: Page) => void;
   onRecord: () => void;
+  recordingActive?: boolean;
+  onReturnToRecording?: () => void;
 }) {
   // Meeting view is reached via actions, not nav — no nav item highlights then.
   const navActive = NAV.some((n) => n.page === page) ? page : null;
@@ -48,12 +52,23 @@ export default function Sidebar({
         })}
       </nav>
 
-      <button
-        onClick={onRecord}
-        className="mt-auto flex items-center justify-center gap-[9px] bg-ink text-white border-none font-sans text-[14px] font-semibold p-[13px] rounded-[13px] cursor-pointer transition-[0.18s] hover:-translate-y-[1px]"
-      >
-        <span className="w-2 h-2 rounded-full bg-rec" /> Start recording
-      </button>
+      {recordingActive ? (
+        <button
+          type="button"
+          onClick={onReturnToRecording}
+          className="mt-auto flex items-center justify-center gap-[9px] bg-rec text-white border-none font-sans text-[14px] font-semibold p-[13px] rounded-[13px] cursor-pointer transition-[0.18s] hover:-translate-y-[1px]"
+        >
+          <span className="w-2 h-2 rounded-full bg-white animate-pulse-dot" /> Recording — view
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onRecord}
+          className="mt-auto flex items-center justify-center gap-[9px] bg-ink text-white border-none font-sans text-[14px] font-semibold p-[13px] rounded-[13px] cursor-pointer transition-[0.18s] hover:-translate-y-[1px]"
+        >
+          <span className="w-2 h-2 rounded-full bg-rec" /> Start recording
+        </button>
+      )}
 
       <div className="flex items-center gap-[10px] px-2 pt-4 mt-4 border-t border-line">
         <div className="w-[30px] h-[30px] rounded-full bg-indigo text-white grid place-items-center text-[12px] font-bold">

@@ -6,7 +6,8 @@ import Transcript from "../components/Transcript";
 import AsanaModal from "../components/AsanaModal";
 import { useRecording } from "../lib/useRecording";
 import { useTranscript, type Segment } from "../lib/useTranscript";
-import { commands, type NoteDetail } from "../lib/ipc";
+import { useSettings } from "../lib/useSettings";
+import { commands, type NoteDetail, type AnalysisModelId } from "../lib/ipc";
 
 type Tab = "notes" | "transcript";
 
@@ -35,6 +36,8 @@ export default function Meeting({
 
   const rec = useRecording();
   const tx = useTranscript(true);
+  const { values: settings } = useSettings();
+  const disclosureOn = settings.auto_disclosure === "on";
 
   const reload = useCallback(async () => {
     const n = await commands.getNote(noteId);
@@ -78,7 +81,8 @@ export default function Meeting({
     setGenerating(true);
     setGenError(null);
     try {
-      const g = await commands.generateNotes(transcriptText, scratch);
+      const model = settings.analysis_model as AnalysisModelId;
+      const g = await commands.generateNotes(transcriptText, scratch, model);
       await commands.saveGenerated(noteId, g);
       await reload();
       setTab("notes");
@@ -87,7 +91,7 @@ export default function Meeting({
     } finally {
       setGenerating(false);
     }
-  }, [transcriptText, scratch, noteId, reload]);
+  }, [transcriptText, scratch, noteId, reload, settings.analysis_model]);
 
   // Auto-start a real recording when opened in record mode.
   const started = useRef(false);
@@ -111,12 +115,17 @@ export default function Meeting({
     try {
       await commands.saveSegments(noteId, segs);
       await commands.setRecordingResult(noteId, rec.wavPath ?? wav ?? null, rec.elapsed);
+      // Retention rule: transcript is the keepsake — drop the audio file once
+      // segments are saved if the user opted to delete after transcription.
+      if (settings.audio_retention === "delete") {
+        await commands.deleteAudio(noteId).catch(() => {});
+      }
     } catch (e) {
       console.error("persist recording failed", e);
     }
     if (segs.length > 0 || scratch.trim()) generate();
     else reload();
-  }, [rec, tx.segments, noteId, scratch, generate, reload]);
+  }, [rec, tx.segments, noteId, scratch, generate, reload, settings.audio_retention]);
 
   async function addActionItem(text: string) {
     await commands.addActionItem(noteId, text).catch(() => {});
@@ -173,6 +182,13 @@ export default function Meeting({
           )}
         </div>
       </div>
+
+      {rec.recording && disclosureOn && (
+        <div className="flex items-center gap-[9px] mb-[18px] px-[14px] py-[10px] rounded-[11px] bg-rec-soft border border-rec/30 text-[12.5px] text-rec font-semibold">
+          <span className="w-2 h-2 rounded-full bg-rec animate-pulse-dot shrink-0" />
+          This call is being recorded &amp; transcribed.
+        </div>
+      )}
 
       <div className="flex gap-[26px] border-b border-line mb-[22px]">
         {(["notes", "transcript"] as Tab[]).map((t) => (

@@ -10,6 +10,8 @@ export const DEFAULTS: SettingsMap = {
   language: "auto",
   auto_record: "ask",
   audio_retention: "delete",
+  auto_disclosure: "off",
+  theme: "system",
 };
 
 export function useSettings() {

@@ -16,6 +16,21 @@ pub fn health_check() -> &'static str {
     "ok"
 }
 
+/// Open the relevant macOS System Settings privacy pane so the user can grant
+/// mic / screen-recording (system audio) access.
+#[tauri::command]
+pub fn open_privacy_settings(app: tauri::AppHandle, pane: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = match pane.as_str() {
+        "microphone" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+        "screen" => "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+        _ => "x-apple.systempreferences:com.apple.preference.security?Privacy",
+    };
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn get_settings(db: State<'_, Db>) -> Result<HashMap<String, String>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;

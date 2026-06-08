@@ -8,6 +8,8 @@ import Settings from "./screens/Settings";
 import MeetingStartingPrompt from "./components/MeetingStartingPrompt";
 import { commands, type NoteSource, type CalendarEvent } from "./lib/ipc";
 import { useMeetingScheduler } from "./lib/useMeetingScheduler";
+import { useRecordingActive } from "./lib/useRecordingActive";
+import { useTheme } from "./lib/useTheme";
 
 export type Page = "dashboard" | "calendar" | "notes" | "meeting" | "settings";
 
@@ -16,6 +18,9 @@ export default function App() {
   const [meetingNoteId, setMeetingNoteId] = useState<string | null>(null);
   const [meetingRecording, setMeetingRecording] = useState(false);
   const [starting, setStarting] = useState<CalendarEvent | null>(null);
+
+  // Load the persisted theme and apply `.dark` to <html> on startup.
+  useTheme();
 
   // Create a fresh note row, then open the Meeting view bound to it.
   const openMeeting = useCallback(
@@ -42,6 +47,8 @@ export default function App() {
   const onAsk = useCallback((ev: CalendarEvent) => setStarting(ev), []);
   useMeetingScheduler(onAuto, onAsk);
 
+  const recordingActive = useRecordingActive();
+
   // Open an existing saved note.
   function openNote(id: string) {
     setMeetingNoteId(id);
@@ -55,6 +62,8 @@ export default function App() {
         page={page}
         onNavigate={setPage}
         onRecord={() => openMeeting(true)}
+        recordingActive={recordingActive}
+        onReturnToRecording={() => meetingNoteId && setPage("meeting")}
       />
       <main className="overflow-y-auto h-screen">
         <div className="px-10 pt-[34px] pb-16 max-w-[1000px] mx-auto">

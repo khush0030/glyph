@@ -3,8 +3,10 @@ import PageHeader from "../components/PageHeader";
 import { Card, SectionHead, Seg, ConnPill } from "../components/ui";
 import Credentials from "../components/Credentials";
 import { CalendarIcon, AsanaIcon } from "../components/Icons";
+import { commands } from "../lib/ipc";
 import { useSettings } from "../lib/useSettings";
 import { useCredentials } from "../lib/useCredentials";
+import { useTheme } from "../lib/useTheme";
 
 // One settings row (.srow): title + description left, control right.
 function SRow({
@@ -39,10 +41,26 @@ const idx = (arr: string[], v: string) => Math.max(0, arr.indexOf(v));
 export default function Settings() {
   const { values, set } = useSettings();
   const creds = useCredentials();
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="animate-fade">
       <PageHeader title="Settings" sub="Engines, integrations & privacy" />
+
+      <SectionHead title="Appearance" />
+      <Card>
+        <SRow
+          title="Theme"
+          desc="Light, dark, or follow your macOS appearance automatically."
+          control={
+            <Seg
+              options={["Light", "Dark", "System"]}
+              value={idx(["light", "dark", "system"], theme)}
+              onChange={(i) => setTheme(["light", "dark", "system"][i] as typeof theme)}
+            />
+          }
+        />
+      </Card>
 
       <SectionHead title="Transcription & analysis" />
       <Card>
@@ -138,7 +156,7 @@ export default function Settings() {
         />
         <SRow
           title="Audio retention"
-          desc="Keep recordings, or delete audio automatically once a meeting is transcribed."
+          desc="Keep recordings, or delete the audio file automatically once a meeting is transcribed."
           control={
             <Seg
               options={["Keep", "Delete after"]}
@@ -148,12 +166,36 @@ export default function Settings() {
           }
         />
         <SRow
-          title="Permissions"
-          desc="Microphone and system-audio access are requested the first time you record."
+          title="Recording disclosure"
+          desc="Show a one-line “this call is being recorded & transcribed” notice in the meeting while recording — for consent on client calls."
           control={
-            <span className="text-[12.5px] font-semibold text-faint">
-              Prompted on first record
-            </span>
+            <Seg
+              options={["Off", "On"]}
+              value={idx(["off", "on"], values.auto_disclosure)}
+              onChange={(i) => set("auto_disclosure", ["off", "on"][i])}
+            />
+          }
+        />
+        <SRow
+          title="Permissions"
+          desc="Microphone and system-audio (screen recording) access are requested the first time you record. Manage them in System Settings."
+          control={
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => commands.openPrivacySettings("microphone")}
+                className="text-[12.5px] font-semibold border border-line rounded-[9px] px-[11px] py-[7px] hover:border-faint"
+              >
+                Microphone
+              </button>
+              <button
+                type="button"
+                onClick={() => commands.openPrivacySettings("screen")}
+                className="text-[12.5px] font-semibold border border-line rounded-[9px] px-[11px] py-[7px] hover:border-faint"
+              >
+                System audio
+              </button>
+            </div>
           }
         />
       </Card>
