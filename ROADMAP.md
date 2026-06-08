@@ -47,8 +47,8 @@ Build `audiocap` standalone first: Core Audio tap (system audio) + AVAudioEngine
 ---
 
 ### M7 — Settings, cost display & polish (1 day)
-Settings page wired: engine (Cloud now; Private placeholder), analysis model (Haiku/Sonnet), integration connect/disconnect, auto-record default, audio retention, permissions + deep-links, Scribe per-hour cost note, recording indicator + optional auto-disclosure line.
-**Done when:** every toggle in `design/mockup.html` Settings is functional and persists.
+Settings page wired: engine (Cloud now; Private placeholder), analysis model (Haiku/Sonnet), integration connect/disconnect, auto-record default, audio retention, permissions + deep-links, Scribe per-hour cost note, recording indicator + optional auto-disclosure line. Appearance: Light/Dark/System theme (CSS-variable palette, follows macOS in System mode), persisted in settings.
+**Done when:** every toggle in `design/mockup.html` Settings is functional and persists, and the theme toggle flips the whole app light/dark (System tracks macOS).
 
 ---
 

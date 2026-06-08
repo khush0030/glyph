@@ -37,7 +37,7 @@ export default function Transcript({
             {fmtTime(seg.startMs)}
           </div>
           <div
-            className={`text-[#3b3850] ${
+            className={`text-prose ${
               isDevanagari(seg.text)
                 ? "dev text-[14px] leading-[1.7]"
                 : "text-[14.5px] leading-[1.55]"

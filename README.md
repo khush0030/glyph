@@ -30,6 +30,7 @@ Granola-style. Clean indigo + lime. Minimal.
 - **Manual capture too** — quick "anything on your mind" notes, blank notes, and
   hand-added action items, no recording required.
 - **Stores everything locally** in SQLite. No web backend.
+- **Light & dark themes** — pick Light, Dark, or System (follows macOS appearance).
 
 A **Private Mode** (fully local transcription + analysis, nothing leaves the Mac)
 is a planned later milestone — see [Roadmap](#roadmap).
@@ -135,7 +136,7 @@ Cloud path ships first; each milestone has one gate before the next starts.
 | M4 | Persistence, history, manual capture | Quit/relaunch keeps everything; manual flows work |
 | M5 | Calendar page + auto/ask recording | Upcoming Google meetings listed; start-time prompt/auto |
 | M6 | Asana action-item export           | Items create assigned, dated tasks in the right project |
-| M7 | Settings, cost display & polish    | Every Settings toggle persists |
+| M7 | Settings, cost display & polish    | Every Settings toggle persists; Light/Dark/System theme flips the app |
 | M8 | Private Mode (local)               | Full offline recording; cloud-vs-local comparison |
 | M9 | Packaging & permissions polish     | Fresh launch → permission flow → records, no Terminal |
 

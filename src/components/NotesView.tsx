@@ -74,7 +74,7 @@ export default function NotesView({
           {generated.summary && (
             <>
               <h3 className="text-[14.5px] font-bold mb-[10px]">Summary</h3>
-              <p className={`text-[14.5px] leading-[1.62] text-[#3b3850] mb-[9px] ${isDevanagari(generated.summary) ? "dev" : ""}`}>
+              <p className={`text-[14.5px] leading-[1.62] text-prose mb-[9px] ${isDevanagari(generated.summary) ? "dev" : ""}`}>
                 {generated.summary}
               </p>
             </>
@@ -143,7 +143,7 @@ export default function NotesView({
 
 function Bullet({ text }: { text: string }) {
   return (
-    <li className={`text-[14.5px] leading-[1.55] text-[#3b3850] pl-[18px] relative mb-2 before:content-[''] before:absolute before:left-[3px] before:top-[9px] before:w-[5px] before:h-[5px] before:rounded-full before:bg-indigo ${isDevanagari(text) ? "dev" : ""}`}>
+    <li className={`text-[14.5px] leading-[1.55] text-prose pl-[18px] relative mb-2 before:content-[''] before:absolute before:left-[3px] before:top-[9px] before:w-[5px] before:h-[5px] before:rounded-full before:bg-indigo ${isDevanagari(text) ? "dev" : ""}`}>
       {text}
     </li>
   );

@@ -1,29 +1,36 @@
 import type { Config } from "tailwindcss";
 
-// Tokens lifted verbatim from design/mockup.html :root — do not redesign.
+// Color tokens are CSS variables (space-separated RGB channels) so the same
+// utility classes (`bg-bg`, `text-ink`, `border-line`…) flip between the light
+// and dark palettes defined in src/index.css. Light values lifted verbatim from
+// design/mockup.html :root — do not redesign.
+const c = (v: string) => `rgb(var(${v}) / <alpha-value>)`;
+
 export default {
+  darkMode: "class",
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        bg: "#FAFAFC",
-        surface: "#FFFFFF",
-        ink: "#1A1823",
-        muted: "#6C6979",
-        faint: "#A4A1B2",
-        line: "#EDECF2",
-        "line-soft": "#F4F3F8",
-        indigo: "#5A4BD4",
-        "indigo-deep": "#4636AE",
-        "indigo-soft": "#EFEDFC",
-        lime: "#C6F24E",
-        "lime-deep": "#3F5807",
-        rec: "#E5484D",
-        "rec-soft": "#FCEEEE",
-        green: "#2F9E6B",
-        "green-soft": "#E8F6EF",
-        amber: "#C77D18",
-        "amber-soft": "#FBF1E0",
+        bg: c("--c-bg"),
+        surface: c("--c-surface"),
+        ink: c("--c-ink"),
+        prose: c("--c-prose"),
+        muted: c("--c-muted"),
+        faint: c("--c-faint"),
+        line: c("--c-line"),
+        "line-soft": c("--c-line-soft"),
+        indigo: c("--c-indigo"),
+        "indigo-deep": c("--c-indigo-deep"),
+        "indigo-soft": c("--c-indigo-soft"),
+        lime: c("--c-lime"),
+        "lime-deep": c("--c-lime-deep"),
+        rec: c("--c-rec"),
+        "rec-soft": c("--c-rec-soft"),
+        green: c("--c-green"),
+        "green-soft": c("--c-green-soft"),
+        amber: c("--c-amber"),
+        "amber-soft": c("--c-amber-soft"),
       },
       borderRadius: {
         r: "18px",
@@ -35,7 +42,7 @@ export default {
         dev: ['"Noto Sans Devanagari"', "sans-serif"],
       },
       boxShadow: {
-        card: "0 1px 2px rgba(26,24,35,.03),0 4px 16px rgba(26,24,35,.04)",
+        card: "var(--shadow-card)",
       },
     },
   },
