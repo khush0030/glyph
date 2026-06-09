@@ -4,10 +4,9 @@ import RecordButton from "../components/RecordButton";
 import NotesView from "../components/NotesView";
 import Transcript from "../components/Transcript";
 import AsanaModal from "../components/AsanaModal";
-import { useRecording } from "../lib/useRecording";
-import { useTranscript, type Segment } from "../lib/useTranscript";
+import { type Segment } from "../lib/useTranscript";
 import { useSettings } from "../lib/useSettings";
-import { commands, on, EVENTS, type NoteDetail, type AnalysisModelId, type NotesDepth } from "../lib/ipc";
+import { commands, type NoteDetail, type AnalysisModelId, type NotesDepth } from "../lib/ipc";
 
 type Tab = "notes" | "transcript";
 
@@ -17,29 +16,39 @@ function fmt(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// Recording is owned by the app-level controller (so it survives navigation and
+// can be stopped from anywhere). This screen renders the note and, when it is
+// the active recording, the live controls driven by props.
 export default function Meeting({
   noteId,
-  recording,
+  isRecording,
+  transcribing,
+  elapsed,
+  statusMsg,
+  recError,
+  finishedToken,
+  onStop,
   onDeleted,
 }: {
   noteId: string;
-  recording: boolean;
+  isRecording: boolean;
+  transcribing: boolean;
+  elapsed: number;
+  statusMsg: string;
+  recError: string | null;
+  finishedToken: number;
+  onStop: () => void;
   onDeleted: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>(recording ? "transcript" : "notes");
+  const [tab, setTab] = useState<Tab>(isRecording ? "transcript" : "notes");
   const [asanaOpen, setAsanaOpen] = useState(false);
   const [note, setNote] = useState<NoteDetail | null>(null);
   const [title, setTitle] = useState("");
   const [scratch, setScratch] = useState("");
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
-  const [stopping, setStopping] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const [statusMsg, setStatusMsg] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const rec = useRecording();
-  const tx = useTranscript(true);
   const { values: settings, set: setSetting } = useSettings();
   const disclosureOn = settings.auto_disclosure === "on";
   const depth = (settings.notes_depth as NotesDepth) ?? "concise";
@@ -50,14 +59,24 @@ export default function Meeting({
     return n;
   }, [noteId]);
 
-  // Load the note once.
+  // Load the note, and reload when this note's recording finishes (new
+  // transcript + notes land) so the screen reflects them without navigation.
   useEffect(() => {
     (async () => {
       const n = await reload();
       setTitle(n.title);
       setScratch(n.scratch);
     })();
-  }, [reload]);
+  }, [reload, finishedToken]);
+
+  // After a recording finishes, show the notes tab.
+  const prevFinished = useRef(finishedToken);
+  useEffect(() => {
+    if (finishedToken !== prevFinished.current) {
+      prevFinished.current = finishedToken;
+      setTab("notes");
+    }
+  }, [finishedToken]);
 
   // Debounced autosave of title + scratch.
   const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,12 +92,7 @@ export default function Meeting({
     scratchTimer.current = setTimeout(() => commands.saveScratch(noteId, v).catch(() => {}), 500);
   }
 
-  // Live transcript while recording; saved segments once loaded.
-  const liveSegments = tx.segments;
-  const displaySegments: Segment[] = liveSegments.length
-    ? liveSegments
-    : (note?.segments ?? []).map((s) => ({ ...s, isFinal: true }));
-
+  const displaySegments: Segment[] = (note?.segments ?? []).map((s) => ({ ...s, isFinal: true }));
   const transcriptText = displaySegments.map((s) => s.text).join("\n");
   const canGenerate = transcriptText.trim().length > 0 || scratch.trim().length > 0;
 
@@ -111,60 +125,6 @@ export default function Meeting({
     [setSetting, note?.generated, generate]
   );
 
-  // Auto-start a real recording when opened in record mode.
-  const started = useRef(false);
-  useEffect(() => {
-    if (recording && !started.current) {
-      started.current = true;
-      tx.reset();
-      rec.start();
-    }
-  }, [recording, rec, tx]);
-
-  // Surface backend transcription status (model download %, transcribing).
-  useEffect(() => {
-    let un: (() => void) | undefined;
-    on<{ state: string; pct?: number }>(EVENTS.recordingStatus, (e) => {
-      const p = e.payload;
-      if (p.state === "downloading_model")
-        setStatusMsg(`Downloading speech model… ${p.pct ?? 0}%`);
-      else if (p.state === "transcribing") setStatusMsg("Transcribing…");
-      else setStatusMsg("");
-    }).then((u) => (un = u));
-    return () => un?.();
-  }, []);
-
-  // Stop → transcribe the saved WAV locally (whisper.cpp), persist segments,
-  // then fold into notes. `stopping` keeps the toolbar non-destructive so a
-  // stray second click can't land on Delete the instant Stop disappears.
-  const handleStop = useCallback(async () => {
-    setStopping(true);
-    setTab("transcript");
-    const wavPath = await rec.stop();
-    let segs: { text: string; lang: string; startMs: number; endMs: number }[] = [];
-    try {
-      if (wavPath) {
-        setTranscribing(true);
-        segs = await commands.transcribeRecording(wavPath);
-      }
-      await commands.saveSegments(noteId, segs);
-      await commands.setRecordingResult(noteId, wavPath ?? null, rec.elapsed);
-      // Drop the audio only after a successful transcript save, if opted in.
-      if (segs.length > 0 && settings.audio_retention === "delete") {
-        await commands.deleteAudio(noteId).catch(() => {});
-      }
-    } catch (e) {
-      console.error("transcribe/persist failed", e);
-      setGenError(`Transcription failed: ${e}`);
-    } finally {
-      setTranscribing(false);
-      setStatusMsg("");
-      setStopping(false);
-    }
-    if (segs.length > 0 || scratch.trim()) generate();
-    else reload();
-  }, [rec, noteId, scratch, generate, reload, settings.audio_retention]);
-
   async function addActionItem(text: string) {
     await commands.addActionItem(noteId, text).catch(() => {});
     reload();
@@ -177,8 +137,7 @@ export default function Meeting({
     await commands.deleteNote(noteId).catch(() => {});
     onDeleted();
   }
-  const isBusy = rec.recording || stopping || generating;
-
+  const isBusy = isRecording || transcribing || generating;
 
   return (
     <div className="animate-fade">
@@ -192,17 +151,17 @@ export default function Meeting({
             className="text-[24px] font-extrabold tracking-[-0.7px] border-none bg-transparent text-ink w-full outline-none"
           />
           <div className="text-[13px] text-faint mt-[5px]">
-            {rec.recording ? (
+            {isRecording ? (
               <>
-                <span className="text-rec font-semibold">● Recording {fmt(rec.elapsed)}</span>{" "}
+                <span className="text-rec font-semibold">● Recording {fmt(elapsed)}</span>{" "}
                 · mic + system audio
               </>
-            ) : stopping || transcribing ? (
+            ) : transcribing ? (
               <span className="text-indigo font-semibold">
                 {statusMsg || "Transcribing on this Mac…"}
               </span>
-            ) : rec.error ? (
-              <span className="text-rec">Couldn’t start recording: {rec.error}</span>
+            ) : recError ? (
+              <span className="text-rec">Couldn’t start recording: {recError}</span>
             ) : note?.audioPath ? (
               <>Saved · audio on this Mac</>
             ) : (
@@ -212,10 +171,10 @@ export default function Meeting({
         </div>
         <div className="flex items-center gap-[9px] shrink-0">
           <Seg title="Language" options={["Auto", <span className="dev">हिं</span>, "EN"]} />
-          {rec.recording ? (
-            <RecordButton onStop={handleStop} />
-          ) : stopping ? (
-            <span className="text-[12.5px] font-semibold text-faint px-2 py-2">Saving…</span>
+          {isRecording ? (
+            <RecordButton onStop={onStop} />
+          ) : transcribing ? (
+            <span className="text-[12.5px] font-semibold text-faint px-2 py-2">Transcribing…</span>
           ) : confirmingDelete ? (
             <span className="flex items-center gap-2">
               <button
@@ -246,7 +205,7 @@ export default function Meeting({
         </div>
       </div>
 
-      {rec.recording && disclosureOn && (
+      {isRecording && disclosureOn && (
         <div className="flex items-center gap-[9px] mb-[18px] px-[14px] py-[10px] rounded-[11px] bg-rec-soft border border-rec/30 text-[12.5px] text-rec font-semibold">
           <span className="w-2 h-2 rounded-full bg-rec animate-pulse-dot shrink-0" />
           This call is being recorded &amp; transcribed.
@@ -307,7 +266,7 @@ export default function Meeting({
                 Connect Asana in Settings to route action items.
               </div>
               {[
-                ["Engine", "Cloud · Scribe v2"],
+                ["Engine", "Local · Whisper"],
                 ["Saved", "On this Mac"],
               ].map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between text-[13px] py-[9px] border-b border-line-soft last:border-b-0">
@@ -326,7 +285,7 @@ export default function Meeting({
           </aside>
         </div>
       ) : (
-        <Transcript segments={displaySegments} partial={tx.partial} recording={rec.recording} />
+        <Transcript segments={displaySegments} partial="" recording={isRecording} />
       )}
 
       {asanaOpen && note && (

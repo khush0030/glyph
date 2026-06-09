@@ -7,9 +7,10 @@ import Meeting from "./screens/Meeting";
 import Settings from "./screens/Settings";
 import MeetingStartingPrompt from "./components/MeetingStartingPrompt";
 import Onboarding from "./components/Onboarding";
+import RecordingBar from "./components/RecordingBar";
 import { commands, type NoteSource, type CalendarEvent } from "./lib/ipc";
 import { useMeetingScheduler } from "./lib/useMeetingScheduler";
-import { useRecordingActive } from "./lib/useRecordingActive";
+import { useRecordingController } from "./lib/useRecordingController";
 import { useSettings } from "./lib/useSettings";
 import { useTheme } from "./lib/useTheme";
 
@@ -18,7 +19,6 @@ export type Page = "dashboard" | "calendar" | "notes" | "meeting" | "settings";
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [meetingNoteId, setMeetingNoteId] = useState<string | null>(null);
-  const [meetingRecording, setMeetingRecording] = useState(false);
   const [starting, setStarting] = useState<CalendarEvent | null>(null);
 
   // Load the persisted theme and apply `.dark` to <html> on startup.
@@ -34,21 +34,36 @@ export default function App() {
     setSetting("onboarded", "yes");
   }, [setSetting]);
 
-  // Create a fresh note row, then open the Meeting view bound to it.
+  // App-level recording lifecycle — survives navigation; shown/stoppable anywhere.
+  const rec = useRecordingController();
+
+  const viewActiveRecording = useCallback(() => {
+    if (rec.activeNoteId) {
+      setMeetingNoteId(rec.activeNoteId);
+      setPage("meeting");
+    }
+  }, [rec.activeNoteId]);
+
+  // Create a fresh note row, open the Meeting view, and (if recording) start.
   const openMeeting = useCallback(
     async (recording: boolean, opts?: { title?: string; source?: NoteSource }) => {
+      // Already recording? Don't start a second one — jump to the active meeting.
+      if (recording && (rec.recording || rec.transcribing)) {
+        viewActiveRecording();
+        return;
+      }
       try {
         const source = opts?.source ?? (recording ? "recorded" : "manual");
         const title = opts?.title ?? (recording ? "Untitled meeting" : "New note");
         const id = await commands.createNote(source, title);
         setMeetingNoteId(id);
-        setMeetingRecording(recording);
         setPage("meeting");
+        if (recording) await rec.start(id);
       } catch (e) {
         console.error("could not create note", e);
       }
     },
-    []
+    [rec, viewActiveRecording]
   );
 
   // Fire at a meeting's start: auto-record, or ask via the prompt.
@@ -59,12 +74,9 @@ export default function App() {
   const onAsk = useCallback((ev: CalendarEvent) => setStarting(ev), []);
   useMeetingScheduler(onAuto, onAsk);
 
-  const recordingActive = useRecordingActive();
-
   // Open an existing saved note.
   function openNote(id: string) {
     setMeetingNoteId(id);
-    setMeetingRecording(false);
     setPage("meeting");
   }
 
@@ -76,10 +88,11 @@ export default function App() {
         page={page}
         onNavigate={setPage}
         onRecord={() => openMeeting(true)}
-        recordingActive={recordingActive}
-        onReturnToRecording={() => meetingNoteId && setPage("meeting")}
+        recordingActive={rec.recording || rec.transcribing}
+        onReturnToRecording={viewActiveRecording}
       />
       <main className="overflow-y-auto h-screen">
+        <RecordingBar ctl={rec} onView={viewActiveRecording} />
         <div className="px-10 pt-[34px] pb-16 max-w-[1000px] mx-auto">
           {page === "dashboard" && (
             <Dashboard
@@ -98,7 +111,13 @@ export default function App() {
             <Meeting
               key={meetingNoteId}
               noteId={meetingNoteId}
-              recording={meetingRecording}
+              isRecording={rec.activeNoteId === meetingNoteId && rec.recording}
+              transcribing={rec.activeNoteId === meetingNoteId && rec.transcribing}
+              elapsed={rec.elapsed}
+              statusMsg={rec.statusMsg}
+              recError={rec.error}
+              finishedToken={rec.finishedToken}
+              onStop={rec.stop}
               onDeleted={() => setPage("notes")}
             />
           )}
