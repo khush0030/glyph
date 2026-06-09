@@ -2,8 +2,9 @@
 //! scratch notes into structured notes (SPEC §7): Summary, Key points,
 //! Decisions, and Action items as structured rows { text, assignee?, dueHint? }.
 //!
-//! Hard rules baked into the prompt: NEVER translate (preserve each line's
-//! language; Hindi stays in Devanagari), treat scratch as high-priority, terse.
+//! Rules baked into the prompt: the notes are ALWAYS written in English (Hindi/
+//! Hinglish meetings are translated for the summary), scratch is high-priority.
+//! The verbatim transcript is stored separately and is never translated.
 //! Structured output is obtained via a forced tool call.
 
 use serde::{Deserialize, Serialize};
@@ -27,7 +28,7 @@ NO REDUNDANCY: each fact belongs in ONE section only. Do not restate the summary
 
 FAITHFULNESS:
 - NEVER invent, assume, or embellish. Only what is in the transcript or scratch notes.
-- NEVER translate. Keep every line in the language spoken: Hindi in Devanagari, English in Latin, Hinglish as-is. Do not romanize Hindi.
+- ALWAYS write the notes in English. If the meeting was spoken in Hindi or Hinglish, translate the meaning into clear, natural English. Every field — summary, key points, decisions, open questions, action items — must be in English (Latin script), never Devanagari. (The original transcript is preserved separately and unchanged.)
 - Treat the user's scratch notes as high-priority intent.
 - If an action item's owner or deadline is not stated, OMIT that field. Never output placeholders like 'unknown', 'N/A', 'TBD', 'none', or '<UNKNOWN>'.
 
@@ -46,7 +47,7 @@ NO REDUNDANCY: each fact belongs in ONE section only. Do not restate the summary
 
 FAITHFULNESS:
 - NEVER invent, assume, or embellish. Only what is in the transcript or scratch notes.
-- NEVER translate. Keep every line in the language spoken: Hindi in Devanagari, English in Latin, Hinglish as-is. Do not romanize Hindi.
+- ALWAYS write the notes in English. If the meeting was spoken in Hindi or Hinglish, translate the meaning into clear, natural English. Every field — summary, key points, decisions, open questions, action items — must be in English (Latin script), never Devanagari. (The original transcript is preserved separately and unchanged.)
 - Treat the user's scratch notes as high-priority intent.
 - If an action item's owner or deadline is not stated, OMIT that field. Never output placeholders like 'unknown', 'N/A', 'TBD', 'none', or '<UNKNOWN>'.";
 
