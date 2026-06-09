@@ -88,9 +88,16 @@ pub async fn connect(app: AppHandle, api_key: String) -> Result<ScribeHandle, St
                 Some("partial_transcript") => {
                     emit_segment(&app_evt, events::TRANSCRIPT_PARTIAL, &v, false);
                 }
-                Some("committed_transcript")
-                | Some("committed_transcript_with_timestamps") => {
+                // With include_timestamps=true Scribe emits BOTH a plain
+                // `committed_transcript` (no word timings → start=0) and a
+                // `committed_transcript_with_timestamps` for the same segment.
+                // Commit only the timestamped one, else every segment is
+                // duplicated and one copy is stamped 0:00.
+                Some("committed_transcript_with_timestamps") => {
                     emit_segment(&app_evt, events::TRANSCRIPT_FINAL, &v, true);
+                }
+                Some("committed_transcript") => {
+                    tracing::debug!("ignoring untimed committed_transcript (dupe of timestamped)");
                 }
                 other => {
                     tracing::debug!("scribe msg: {:?}", other);

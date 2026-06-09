@@ -33,6 +33,8 @@ export default function Meeting({
   const [scratch, setScratch] = useState("");
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const rec = useRecording();
   const tx = useTranscript(true);
@@ -117,8 +119,30 @@ export default function Meeting({
     }
   }, [recording, rec, tx]);
 
-  // Stop → persist audio + segments, then fold into notes.
+  // Crash safety: persist the transcript periodically while recording, so an
+  // interruption (crash, force-quit, accidental close) never loses everything —
+  // currently segments would otherwise only hit disk on Stop.
+  const segsRef = useRef(tx.segments);
+  segsRef.current = tx.segments;
+  useEffect(() => {
+    if (!rec.recording) return;
+    const id = setInterval(() => {
+      const segs = segsRef.current.map((s) => ({
+        text: s.text,
+        lang: s.lang,
+        startMs: s.startMs,
+        endMs: s.endMs,
+      }));
+      if (segs.length) commands.saveSegments(noteId, segs).catch(() => {});
+    }, 8000);
+    return () => clearInterval(id);
+  }, [rec.recording, noteId]);
+
+  // Stop → persist audio + segments, then fold into notes. `stopping` keeps the
+  // toolbar in a non-destructive "Saving…" state so a stray second click can't
+  // land on Delete the instant Stop disappears.
   const handleStop = useCallback(async () => {
+    setStopping(true);
     const wav = await rec.stop().then(() => rec.wavPath).catch(() => null);
     const segs = tx.segments.map((s) => ({
       text: s.text,
@@ -126,17 +150,21 @@ export default function Meeting({
       startMs: s.startMs,
       endMs: s.endMs,
     }));
+    let saved = false;
     try {
       await commands.saveSegments(noteId, segs);
       await commands.setRecordingResult(noteId, rec.wavPath ?? wav ?? null, rec.elapsed);
+      saved = true;
       // Retention rule: transcript is the keepsake — drop the audio file once
-      // segments are saved if the user opted to delete after transcription.
-      if (settings.audio_retention === "delete") {
+      // segments are saved AND only if the user opted to delete after transcription.
+      // Never delete audio if the save failed — it's the last backup.
+      if (saved && settings.audio_retention === "delete") {
         await commands.deleteAudio(noteId).catch(() => {});
       }
     } catch (e) {
       console.error("persist recording failed", e);
     }
+    setStopping(false);
     if (segs.length > 0 || scratch.trim()) generate();
     else reload();
   }, [rec, tx.segments, noteId, scratch, generate, reload, settings.audio_retention]);
@@ -153,6 +181,7 @@ export default function Meeting({
     await commands.deleteNote(noteId).catch(() => {});
     onDeleted();
   }
+  const isBusy = rec.recording || stopping || generating;
 
 
   return (
@@ -185,11 +214,31 @@ export default function Meeting({
           <Seg title="Language" options={["Auto", <span className="dev">हिं</span>, "EN"]} />
           {rec.recording ? (
             <RecordButton onStop={handleStop} />
+          ) : stopping ? (
+            <span className="text-[12.5px] font-semibold text-faint px-2 py-2">Saving…</span>
+          ) : confirmingDelete ? (
+            <span className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                className="text-[12.5px] font-semibold text-faint hover:text-ink px-2 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={remove}
+                className="text-[12.5px] font-semibold text-white bg-rec rounded-[9px] px-3 py-2"
+              >
+                Delete meeting?
+              </button>
+            </span>
           ) : (
             <button
               type="button"
-              onClick={remove}
-              className="text-[12.5px] font-semibold text-faint hover:text-rec px-2 py-2"
+              onClick={() => setConfirmingDelete(true)}
+              disabled={isBusy}
+              className="text-[12.5px] font-semibold text-faint hover:text-rec px-2 py-2 disabled:opacity-40"
             >
               Delete
             </button>

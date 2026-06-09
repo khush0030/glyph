@@ -368,6 +368,13 @@ pub fn save_scratch(db: State<'_, Db>, id: String, scratch: String) -> Result<()
 pub fn save_segments(db: State<'_, Db>, note_id: String, segments: Vec<SegmentIn>) -> Result<(), String> {
     let mut conn = db.0.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+    // Safety net: never lose a recording because the note row is missing
+    // (deleted, or createNote failed). Recreate it idempotently.
+    tx.execute(
+        "INSERT OR IGNORE INTO notes (id, title, created_at, updated_at, source, status) VALUES (?1, '', ?2, ?2, 'recorded', 'draft')",
+        params![note_id, now_ms()],
+    )
+    .map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM segments WHERE note_id = ?1", params![note_id])
         .map_err(|e| e.to_string())?;
     for (i, s) in segments.iter().enumerate() {
@@ -403,6 +410,11 @@ pub fn save_generated(
     })
     .to_string();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT OR IGNORE INTO notes (id, title, created_at, updated_at, source, status) VALUES (?1, '', ?2, ?2, 'recorded', 'draft')",
+        params![note_id, now_ms()],
+    )
+    .map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM generated_notes WHERE note_id = ?1", params![note_id])
         .map_err(|e| e.to_string())?;
     tx.execute(
@@ -475,7 +487,9 @@ pub fn set_recording_result(
 ) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE notes SET audio_path = ?2, duration_sec = ?3, updated_at = ?4 WHERE id = ?1",
+        "INSERT INTO notes (id, title, created_at, updated_at, source, status, audio_path, duration_sec)
+         VALUES (?1, '', ?4, ?4, 'recorded', 'draft', ?2, ?3)
+         ON CONFLICT(id) DO UPDATE SET audio_path = ?2, duration_sec = ?3, updated_at = ?4",
         params![id, audio_path, duration_sec, now_ms()],
     )
     .map_err(|e| e.to_string())?;
