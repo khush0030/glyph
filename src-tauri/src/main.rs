@@ -72,6 +72,7 @@ fn main() {
             store::notes_cmds::set_recording_result,
             store::notes_cmds::delete_note,
             store::notes_cmds::delete_audio,
+            store::notes_cmds::reveal_note_files,
             asana::asana_workspaces,
             asana::asana_projects,
             asana::asana_users,

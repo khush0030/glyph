@@ -8,6 +8,7 @@ export interface GeneratedDisplay {
   summary: string;
   keyPoints: string[];
   decisions: string[];
+  openQuestions: string[];
   model: string;
 }
 
@@ -94,6 +95,15 @@ export default function NotesView({
               <h3 className="text-[14.5px] font-bold mt-6 mb-[10px]">Decisions</h3>
               <ul className="list-none">
                 {generated.decisions.map((d, i) => <Bullet key={i} text={d} />)}
+              </ul>
+            </>
+          )}
+
+          {generated.openQuestions.length > 0 && (
+            <>
+              <h3 className="text-[14.5px] font-bold mt-6 mb-[10px]">Open questions</h3>
+              <ul className="list-none">
+                {generated.openQuestions.map((q, i) => <Bullet key={i} text={q} />)}
               </ul>
             </>
           )}

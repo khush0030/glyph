@@ -250,6 +250,13 @@ export default function Meeting({
                   <span className="font-semibold">{v}</span>
                 </div>
               ))}
+              <button
+                type="button"
+                onClick={() => commands.revealNoteFiles(noteId).catch(() => {})}
+                className="mt-[11px] w-full text-[12.5px] font-semibold text-indigo hover:text-indigo-deep text-left"
+              >
+                Show local files (transcript + notes) →
+              </button>
             </div>
           </aside>
         </div>

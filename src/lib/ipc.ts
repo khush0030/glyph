@@ -28,6 +28,7 @@ export const commands = {
       summary: note.summary,
       keyPoints: note.keyPoints,
       decisions: note.decisions,
+      openQuestions: note.openQuestions,
       actionItems: note.actionItems,
       model: note.model,
     }),
@@ -38,6 +39,7 @@ export const commands = {
     invoke<void>("set_recording_result", { id, audioPath, durationSec }),
   deleteNote: (id: string) => invoke<void>("delete_note", { id }),
   deleteAudio: (id: string) => invoke<void>("delete_audio", { id }),
+  revealNoteFiles: (id: string) => invoke<string>("reveal_note_files", { id }),
   getSettings: () => invoke<Record<string, string>>("get_settings"),
   setSettings: (kv: Record<string, string>) => invoke("set_settings", { kv }),
   openPrivacySettings: (pane: "microphone" | "screen") =>
@@ -126,6 +128,7 @@ export interface GeneratedNote {
   summary: string;
   keyPoints: string[];
   decisions: string[];
+  openQuestions: string[];
   actionItems: GeneratedActionItem[];
   model: string;
 }
@@ -173,6 +176,7 @@ export interface NoteDetail {
     summary: string;
     keyPoints: string[];
     decisions: string[];
+    openQuestions: string[];
     model: string;
   } | null;
   actionItems: StoredActionItem[];
