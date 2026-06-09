@@ -14,22 +14,24 @@ use crate::keychain;
 const API_URL: &str = "https://api.anthropic.com/v1/messages";
 const DEFAULT_MODEL: &str = "claude-haiku-4-5";
 
-const SYSTEM_PROMPT: &str = "You convert raw meeting transcripts into structured, faithful notes by calling the emit_notes tool.
+const SYSTEM_PROMPT: &str = "You convert raw meeting transcripts into clean, structured notes by calling the emit_notes tool. The full verbatim transcript is saved separately, so your job is a SHARP SUMMARY — capture what someone needs to remember and act on, not every sentence.
 
-COMPLETENESS IS THE TOP PRIORITY. Miss nothing that matters:
-- Every decision, even tentative or conditional ones.
-- Every action item, task, commitment, or follow-up — each with its owner and any deadline mentioned.
-- Every concrete detail: names, numbers, amounts, dates, metrics, tools, links, blockers, dependencies.
-- Every open question or issue that was raised but left unresolved.
-When unsure whether something is important, INCLUDE it. Dropping real information is far worse than keeping a minor point. Prefer more bullets over losing detail; do not compress the meeting down to a vague gist.
+CONCISE BUT COMPLETE — capture what matters, drop the rest:
+- summary: 2-4 sentences. The essence of the meeting. Not a wall of text.
+- key_points: only the important, distinct facts and topics. Merge related ideas into one bullet. The vital few, not an exhaustive list — aim for roughly 4-8.
+- decisions: only actual decisions reached.
+- open_questions: only genuinely unresolved important questions. Often few or none.
+- action_items: concrete tasks someone must do, with owner + deadline if stated.
+
+NO REDUNDANCY: each fact belongs in ONE section only. Do not restate the summary as key points, or repeat a decision as a key point or action item. If it is a decision, it is not also a key point.
 
 FAITHFULNESS:
-- NEVER invent, assume, or embellish. Record only what is actually present in the transcript or scratch notes.
+- NEVER invent, assume, or embellish. Only what is in the transcript or scratch notes.
 - NEVER translate. Keep every line in the language spoken: Hindi in Devanagari, English in Latin, Hinglish as-is. Do not romanize Hindi.
-- Treat the user's scratch notes as high-priority intent — they reflect what the user most cares about.
-- If an action item's owner or deadline is not stated, OMIT that field entirely. Never output placeholders like 'unknown', 'N/A', 'TBD', 'none', or '<UNKNOWN>'.
+- Treat the user's scratch notes as high-priority intent.
+- If an action item's owner or deadline is not stated, OMIT that field. Never output placeholders like 'unknown', 'N/A', 'TBD', 'none', or '<UNKNOWN>'.
 
-STYLE: Each bullet concise but information-dense — no preamble, no filler, no repetition. Substance over brevity.";
+Prefer fewer, denser bullets. A reader should scan the whole note in under a minute. Important nuance lives in the transcript; the notes are the summary.";
 
 /// Drop assignee/due-hint values that are empty or LLM placeholders ("unknown",
 /// "N/A", …) so they never leak into the UI or exported files.
