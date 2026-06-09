@@ -7,7 +7,7 @@ import AsanaModal from "../components/AsanaModal";
 import { useRecording } from "../lib/useRecording";
 import { useTranscript, type Segment } from "../lib/useTranscript";
 import { useSettings } from "../lib/useSettings";
-import { commands, type NoteDetail, type AnalysisModelId, type NotesDepth } from "../lib/ipc";
+import { commands, on, EVENTS, type NoteDetail, type AnalysisModelId, type NotesDepth } from "../lib/ipc";
 
 type Tab = "notes" | "transcript";
 
@@ -34,6 +34,8 @@ export default function Meeting({
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const rec = useRecording();
@@ -119,55 +121,49 @@ export default function Meeting({
     }
   }, [recording, rec, tx]);
 
-  // Crash safety: persist the transcript periodically while recording, so an
-  // interruption (crash, force-quit, accidental close) never loses everything —
-  // currently segments would otherwise only hit disk on Stop.
-  const segsRef = useRef(tx.segments);
-  segsRef.current = tx.segments;
+  // Surface backend transcription status (model download %, transcribing).
   useEffect(() => {
-    if (!rec.recording) return;
-    const id = setInterval(() => {
-      const segs = segsRef.current.map((s) => ({
-        text: s.text,
-        lang: s.lang,
-        startMs: s.startMs,
-        endMs: s.endMs,
-      }));
-      if (segs.length) commands.saveSegments(noteId, segs).catch(() => {});
-    }, 8000);
-    return () => clearInterval(id);
-  }, [rec.recording, noteId]);
+    let un: (() => void) | undefined;
+    on<{ state: string; pct?: number }>(EVENTS.recordingStatus, (e) => {
+      const p = e.payload;
+      if (p.state === "downloading_model")
+        setStatusMsg(`Downloading speech model… ${p.pct ?? 0}%`);
+      else if (p.state === "transcribing") setStatusMsg("Transcribing…");
+      else setStatusMsg("");
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, []);
 
-  // Stop → persist audio + segments, then fold into notes. `stopping` keeps the
-  // toolbar in a non-destructive "Saving…" state so a stray second click can't
-  // land on Delete the instant Stop disappears.
+  // Stop → transcribe the saved WAV locally (whisper.cpp), persist segments,
+  // then fold into notes. `stopping` keeps the toolbar non-destructive so a
+  // stray second click can't land on Delete the instant Stop disappears.
   const handleStop = useCallback(async () => {
     setStopping(true);
-    const wav = await rec.stop().then(() => rec.wavPath).catch(() => null);
-    const segs = tx.segments.map((s) => ({
-      text: s.text,
-      lang: s.lang,
-      startMs: s.startMs,
-      endMs: s.endMs,
-    }));
-    let saved = false;
+    setTab("transcript");
+    const wavPath = await rec.stop();
+    let segs: { text: string; lang: string; startMs: number; endMs: number }[] = [];
     try {
+      if (wavPath) {
+        setTranscribing(true);
+        segs = await commands.transcribeRecording(wavPath);
+      }
       await commands.saveSegments(noteId, segs);
-      await commands.setRecordingResult(noteId, rec.wavPath ?? wav ?? null, rec.elapsed);
-      saved = true;
-      // Retention rule: transcript is the keepsake — drop the audio file once
-      // segments are saved AND only if the user opted to delete after transcription.
-      // Never delete audio if the save failed — it's the last backup.
-      if (saved && settings.audio_retention === "delete") {
+      await commands.setRecordingResult(noteId, wavPath ?? null, rec.elapsed);
+      // Drop the audio only after a successful transcript save, if opted in.
+      if (segs.length > 0 && settings.audio_retention === "delete") {
         await commands.deleteAudio(noteId).catch(() => {});
       }
     } catch (e) {
-      console.error("persist recording failed", e);
+      console.error("transcribe/persist failed", e);
+      setGenError(`Transcription failed: ${e}`);
+    } finally {
+      setTranscribing(false);
+      setStatusMsg("");
+      setStopping(false);
     }
-    setStopping(false);
     if (segs.length > 0 || scratch.trim()) generate();
     else reload();
-  }, [rec, tx.segments, noteId, scratch, generate, reload, settings.audio_retention]);
+  }, [rec, noteId, scratch, generate, reload, settings.audio_retention]);
 
   async function addActionItem(text: string) {
     await commands.addActionItem(noteId, text).catch(() => {});
@@ -201,6 +197,10 @@ export default function Meeting({
                 <span className="text-rec font-semibold">● Recording {fmt(rec.elapsed)}</span>{" "}
                 · mic + system audio
               </>
+            ) : stopping || transcribing ? (
+              <span className="text-indigo font-semibold">
+                {statusMsg || "Transcribing on this Mac…"}
+              </span>
             ) : rec.error ? (
               <span className="text-rec">Couldn’t start recording: {rec.error}</span>
             ) : note?.audioPath ? (

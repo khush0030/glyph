@@ -26,8 +26,8 @@ export default function Transcript({
       {empty && (
         <div className="text-[13.5px] text-faint">
           {recording
-            ? "Listening… transcript will appear here as people speak."
-            : "No transcript yet. Start recording to capture a live transcript."}
+            ? "Recording… the transcript is generated on this Mac when you stop."
+            : "No transcript yet. Start recording — it's transcribed locally when you stop."}
         </div>
       )}
 

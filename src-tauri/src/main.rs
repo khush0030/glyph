@@ -13,6 +13,7 @@ mod keychain;
 mod notes;
 mod stt;
 mod store;
+mod whisper;
 
 use std::sync::Mutex;
 
@@ -55,6 +56,7 @@ fn main() {
             credentials::credential_status,
             audio::start_recording,
             audio::stop_recording,
+            whisper::transcribe_recording,
             notes::generate_notes,
             calendar::calendar_connected,
             calendar::calendar_connect,

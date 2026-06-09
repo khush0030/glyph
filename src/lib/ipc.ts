@@ -11,6 +11,9 @@ export const commands = {
   startRecording: (source: RecordMode, eventId?: string) =>
     invoke<string>("start_recording", { source, eventId }),
   stopRecording: () => invoke<string>("stop_recording"),
+  // Local whisper.cpp transcription of a finished recording WAV → segments.
+  transcribeRecording: (wavPath: string) =>
+    invoke<StoredSegment[]>("transcribe_recording", { wavPath }),
   // NotesStore (SQLite persistence).
   createNote: (source: NoteSource, title?: string) =>
     invoke<string>("create_note", { source, title }),

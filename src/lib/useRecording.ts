@@ -11,7 +11,8 @@ export interface RecordingState {
   wavPath: string | null;
   error: string | null;
   start: () => Promise<void>;
-  stop: () => Promise<void>;
+  /** Stops and resolves with the saved WAV path (or null on error). */
+  stop: () => Promise<string | null>;
 }
 
 /** Drives a real recording via the Tauri audio commands + events. Safe to call
@@ -50,9 +51,10 @@ export function useRecording(): RecordingState {
     }
   }, [cleanup]);
 
-  const stop = useCallback(async () => {
+  const stop = useCallback(async (): Promise<string | null> => {
+    let path: string | null = null;
     try {
-      const path = await commands.stopRecording();
+      path = await commands.stopRecording();
       setWavPath(path);
     } catch (e) {
       setError(String(e));
@@ -61,6 +63,7 @@ export function useRecording(): RecordingState {
       setRecording(false);
       setLevel(0);
     }
+    return path;
   }, [cleanup]);
 
   useEffect(() => cleanup, [cleanup]);

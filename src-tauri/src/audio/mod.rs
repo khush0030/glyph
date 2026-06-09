@@ -15,7 +15,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-use crate::{events, keychain, stt};
+use crate::events;
 
 /// Holds the live recording session, if any.
 #[derive(Default)]
@@ -58,12 +58,11 @@ pub fn start_recording(app: AppHandle, source: String) -> Result<String, String>
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    // ElevenLabs key is optional — without it, recording still saves a WAV and
-    // shows levels; only live transcription is skipped.
-    let api_key = keychain::get("elevenlabs_api_key").ok().flatten();
+    // Local STT: persist the WAV + emit levels only. Transcription runs after
+    // the user stops (whisper.cpp on the saved file) — no streaming, no cloud.
     let app_task = app.clone();
     let wav_for_task = wav_str.clone();
-    tauri::async_runtime::spawn(pipeline(app_task, rx, wav_for_task, api_key));
+    tauri::async_runtime::spawn(pipeline(app_task, rx, wav_for_task));
 
     *guard = Some(Session {
         child,
@@ -90,34 +89,8 @@ async fn pipeline(
     app: AppHandle,
     mut rx: tauri::async_runtime::Receiver<CommandEvent>,
     wav_path: String,
-    api_key: Option<String>,
 ) {
-    let scribe = match api_key {
-        Some(key) => match stt::connect(app.clone(), key).await {
-            Ok(h) => {
-                let _ = app.emit(
-                    events::RECORDING_STATUS,
-                    serde_json::json!({"state":"transcribing"}),
-                );
-                Some(h)
-            }
-            Err(e) => {
-                tracing::warn!("scribe connect failed: {e}");
-                let _ = app.emit(
-                    events::RECORDING_STATUS,
-                    serde_json::json!({"state":"no_transcription","reason":e}),
-                );
-                None
-            }
-        },
-        None => {
-            let _ = app.emit(
-                events::RECORDING_STATUS,
-                serde_json::json!({"state":"no_transcription","reason":"no ElevenLabs key"}),
-            );
-            None
-        }
-    };
+    let _ = app.emit(events::RECORDING_STATUS, serde_json::json!({"state":"recording"}));
 
     let mut wav = wav::WavWriter::create(Path::new(&wav_path), 16_000)
         .map_err(|e| tracing::error!("wav create failed: {e}"))
@@ -130,9 +103,7 @@ async fn pipeline(
         match event {
             CommandEvent::Stdout(bytes) => {
                 out_buf.extend_from_slice(&bytes);
-                drain_lines(&mut out_buf, |line| {
-                    handle_pcm(line, wav.as_mut(), scribe.as_ref())
-                });
+                drain_lines(&mut out_buf, |line| handle_pcm(line, wav.as_mut()));
             }
             CommandEvent::Stderr(bytes) => {
                 err_buf.extend_from_slice(&bytes);
@@ -147,7 +118,6 @@ async fn pipeline(
         let _ = w.finalize();
     }
     let _ = app.emit(events::RECORDING_STATUS, serde_json::json!({"state":"stopped"}));
-    // `scribe` drops here → final commit + close.
 }
 
 /// Split `buf` on newlines, invoking `cb` per complete line; keep the remainder.
@@ -163,8 +133,8 @@ fn drain_lines(buf: &mut Vec<u8>, mut cb: impl FnMut(&[u8])) {
     }
 }
 
-/// A `{"kind":"pcm","b64":...}` line → append to WAV + forward to Scribe.
-fn handle_pcm(line: &[u8], wav: Option<&mut wav::WavWriter>, scribe: Option<&stt::ScribeHandle>) {
+/// A `{"kind":"pcm","b64":...}` line → append to the WAV.
+fn handle_pcm(line: &[u8], wav: Option<&mut wav::WavWriter>) {
     let Ok(v) = serde_json::from_slice::<Value>(line) else {
         return;
     };
@@ -178,9 +148,6 @@ fn handle_pcm(line: &[u8], wav: Option<&mut wav::WavWriter>, scribe: Option<&stt
         if let Ok(pcm) = base64::engine::general_purpose::STANDARD.decode(b64) {
             let _ = w.write_pcm(&pcm);
         }
-    }
-    if let Some(s) = scribe {
-        s.push_b64(b64.to_string());
     }
 }
 
