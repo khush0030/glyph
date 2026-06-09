@@ -171,3 +171,27 @@ pub async fn transcribe_recording(app: AppHandle, wav_path: String) -> Result<Ve
     );
     Ok(segs)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Runtime smoke test for whisper.cpp + Metal + model load + WAV decode.
+    // Uses on-disk fixtures; run explicitly:
+    //   cargo test --release whisper_smoke -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn whisper_smoke() {
+        let home = std::env::var("HOME").unwrap();
+        let base = format!("{home}/Library/Application Support/ai.oltaflock.glyph");
+        let model = format!("{base}/models/{MODEL_FILE}");
+        let wav = format!("{base}/recordings/rec-1780916564408.wav");
+        let samples = read_wav_f32(&wav).expect("read wav");
+        eprintln!("samples: {}", samples.len());
+        let segs = run_whisper(&model, &samples).expect("transcribe");
+        for s in &segs {
+            eprintln!("[{}-{} {}] {}", s.start_ms, s.end_ms, s.lang, s.text);
+        }
+        assert!(!segs.is_empty(), "expected at least one segment");
+    }
+}
