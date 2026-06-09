@@ -14,7 +14,7 @@ use crate::keychain;
 const API_URL: &str = "https://api.anthropic.com/v1/messages";
 const DEFAULT_MODEL: &str = "claude-haiku-4-5";
 
-const SYSTEM_PROMPT: &str = "You convert raw meeting transcripts into clean, structured notes by calling the emit_notes tool. The full verbatim transcript is saved separately, so your job is a SHARP SUMMARY — capture what someone needs to remember and act on, not every sentence.
+const CONCISE_PROMPT: &str = "You convert raw meeting transcripts into clean, structured notes by calling the emit_notes tool. The full verbatim transcript is saved separately, so your job is a SHARP SUMMARY — capture what someone needs to remember and act on, not every sentence.
 
 CONCISE BUT COMPLETE — capture what matters, drop the rest:
 - summary: 2-4 sentences. The essence of the meeting. Not a wall of text.
@@ -32,6 +32,23 @@ FAITHFULNESS:
 - If an action item's owner or deadline is not stated, OMIT that field. Never output placeholders like 'unknown', 'N/A', 'TBD', 'none', or '<UNKNOWN>'.
 
 Prefer fewer, denser bullets. A reader should scan the whole note in under a minute. Important nuance lives in the transcript; the notes are the summary.";
+
+const DETAILED_PROMPT: &str = "You convert raw meeting transcripts into thorough, structured notes by calling the emit_notes tool. Capture everything important — but stay organized and non-repetitive.
+
+DETAILED MODE — be comprehensive:
+- summary: a full paragraph (4-7 sentences) covering every major theme.
+- key_points: every substantive fact, number, detail, and discussion thread. When unsure whether something matters, include it.
+- decisions: every decision, including tentative or conditional ones.
+- open_questions: every unresolved question or issue raised.
+- action_items: every task, commitment, or follow-up, with owner + deadline if stated.
+
+NO REDUNDANCY: each fact belongs in ONE section only. Do not restate the summary as key points, or repeat a decision as a key point or action item.
+
+FAITHFULNESS:
+- NEVER invent, assume, or embellish. Only what is in the transcript or scratch notes.
+- NEVER translate. Keep every line in the language spoken: Hindi in Devanagari, English in Latin, Hinglish as-is. Do not romanize Hindi.
+- Treat the user's scratch notes as high-priority intent.
+- If an action item's owner or deadline is not stated, OMIT that field. Never output placeholders like 'unknown', 'N/A', 'TBD', 'none', or '<UNKNOWN>'.";
 
 /// Drop assignee/due-hint values that are empty or LLM placeholders ("unknown",
 /// "N/A", …) so they never leak into the UI or exported files.
@@ -78,11 +95,17 @@ pub async fn generate_notes(
     transcript: String,
     scratch: String,
     model: Option<String>,
+    depth: Option<String>,
 ) -> Result<GeneratedNote, String> {
     let key = keychain::get("anthropic_api_key")
         .map_err(|e| e.to_string())?
         .ok_or("No Anthropic API key — add it in Settings → API keys.")?;
     let model = model.unwrap_or_else(|| DEFAULT_MODEL.to_string());
+    let system_prompt = if depth.as_deref() == Some("detailed") {
+        DETAILED_PROMPT
+    } else {
+        CONCISE_PROMPT
+    };
 
     let user_prompt = format!(
         "TRANSCRIPT:\n{}\n\nSCRATCH NOTES (high priority):\n{}",
@@ -120,7 +143,7 @@ pub async fn generate_notes(
     let body = json!({
         "model": model,
         "max_tokens": 8000,
-        "system": SYSTEM_PROMPT,
+        "system": system_prompt,
         "tools": [tool],
         "tool_choice": { "type": "tool", "name": "emit_notes" },
         "messages": [{ "role": "user", "content": user_prompt }]

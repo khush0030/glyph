@@ -7,6 +7,7 @@ export type SettingsMap = Record<string, string>;
 export const DEFAULTS: SettingsMap = {
   engine: "cloud",
   analysis_model: "claude-haiku-4-5",
+  notes_depth: "concise",
   language: "auto",
   auto_record: "ask",
   audio_retention: "delete",

@@ -7,7 +7,7 @@ import AsanaModal from "../components/AsanaModal";
 import { useRecording } from "../lib/useRecording";
 import { useTranscript, type Segment } from "../lib/useTranscript";
 import { useSettings } from "../lib/useSettings";
-import { commands, type NoteDetail, type AnalysisModelId } from "../lib/ipc";
+import { commands, type NoteDetail, type AnalysisModelId, type NotesDepth } from "../lib/ipc";
 
 type Tab = "notes" | "transcript";
 
@@ -36,8 +36,9 @@ export default function Meeting({
 
   const rec = useRecording();
   const tx = useTranscript(true);
-  const { values: settings } = useSettings();
+  const { values: settings, set: setSetting } = useSettings();
   const disclosureOn = settings.auto_disclosure === "on";
+  const depth = (settings.notes_depth as NotesDepth) ?? "concise";
 
   const reload = useCallback(async () => {
     const n = await commands.getNote(noteId);
@@ -77,21 +78,34 @@ export default function Meeting({
   const transcriptText = displaySegments.map((s) => s.text).join("\n");
   const canGenerate = transcriptText.trim().length > 0 || scratch.trim().length > 0;
 
-  const generate = useCallback(async () => {
-    setGenerating(true);
-    setGenError(null);
-    try {
-      const model = settings.analysis_model as AnalysisModelId;
-      const g = await commands.generateNotes(transcriptText, scratch, model);
-      await commands.saveGenerated(noteId, g);
-      await reload();
-      setTab("notes");
-    } catch (e) {
-      setGenError(String(e));
-    } finally {
-      setGenerating(false);
-    }
-  }, [transcriptText, scratch, noteId, reload, settings.analysis_model]);
+  const generate = useCallback(
+    async (depthOverride?: NotesDepth) => {
+      setGenerating(true);
+      setGenError(null);
+      try {
+        const model = settings.analysis_model as AnalysisModelId;
+        const useDepth = depthOverride ?? (settings.notes_depth as NotesDepth);
+        const g = await commands.generateNotes(transcriptText, scratch, model, useDepth);
+        await commands.saveGenerated(noteId, g);
+        await reload();
+        setTab("notes");
+      } catch (e) {
+        setGenError(String(e));
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [transcriptText, scratch, noteId, reload, settings.analysis_model, settings.notes_depth]
+  );
+
+  // Switch concise/detailed; persist it and re-run if notes already exist.
+  const onSetDepth = useCallback(
+    (d: NotesDepth) => {
+      setSetting("notes_depth", d);
+      if (note?.generated) generate(d);
+    },
+    [setSetting, note?.generated, generate]
+  );
 
   // Auto-start a real recording when opened in record mode.
   const started = useRef(false);
@@ -221,7 +235,9 @@ export default function Meeting({
             generating={generating}
             error={genError}
             canGenerate={canGenerate}
-            onGenerate={generate}
+            depth={depth}
+            onSetDepth={onSetDepth}
+            onGenerate={() => generate()}
             onAddActionItem={addActionItem}
             onDeleteActionItem={deleteActionItem}
             onOpenAsana={() => setAsanaOpen(true)}

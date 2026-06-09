@@ -1,8 +1,8 @@
 import ActionItems from "./ActionItems";
-import { Btn } from "./ui";
+import { Btn, Seg } from "./ui";
 import { AsanaIcon } from "./Icons";
 import { isDevanagari } from "../lib/useTranscript";
-import type { StoredActionItem } from "../lib/ipc";
+import type { StoredActionItem, NotesDepth } from "../lib/ipc";
 
 export interface GeneratedDisplay {
   summary: string;
@@ -21,6 +21,8 @@ export default function NotesView({
   generating,
   error,
   canGenerate,
+  depth,
+  onSetDepth,
   onGenerate,
   onAddActionItem,
   onDeleteActionItem,
@@ -31,11 +33,21 @@ export default function NotesView({
   generating: boolean;
   error: string | null;
   canGenerate: boolean;
+  depth: NotesDepth;
+  onSetDepth: (d: NotesDepth) => void;
   onGenerate: () => void;
   onAddActionItem: (text: string) => void;
   onDeleteActionItem: (id: string) => void;
   onOpenAsana: () => void;
 }) {
+  const depthToggle = (
+    <Seg
+      title="How detailed the AI notes are"
+      options={["Concise", "Detailed"]}
+      value={depth === "detailed" ? 1 : 0}
+      onChange={(i) => onSetDepth(i === 1 ? "detailed" : "concise")}
+    />
+  );
   const card = "bg-surface border border-line rounded-r shadow-card px-6 py-[22px]";
 
   if (generating) {
@@ -65,6 +77,7 @@ export default function NotesView({
 
   return (
     <div className={card}>
+      <div className="flex items-center justify-end mb-[14px]">{depthToggle}</div>
       {generated ? (
         <>
           <div className="inline-flex items-center gap-[7px] text-[11.5px] font-semibold text-indigo-deep bg-indigo-soft px-3 py-[5px] rounded-[20px] mb-[18px]">

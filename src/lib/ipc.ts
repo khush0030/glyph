@@ -68,8 +68,12 @@ export const commands = {
   calendarUpcoming: () => invoke<CalendarEvent[]>("calendar_upcoming"),
 
   // Notes — fold transcript + scratch into structured notes via Claude.
-  generateNotes: (transcript: string, scratch: string, model?: AnalysisModelId) =>
-    invoke<GeneratedNote>("generate_notes", { transcript, scratch, model }),
+  generateNotes: (
+    transcript: string,
+    scratch: string,
+    model?: AnalysisModelId,
+    depth?: NotesDepth
+  ) => invoke<GeneratedNote>("generate_notes", { transcript, scratch, model, depth }),
 
   // Credentials — secrets go to the Keychain; status returns booleans only.
   setCredential: (id: CredentialId, value: string) =>
@@ -117,6 +121,7 @@ export interface Permissions {
 }
 
 export type AnalysisModelId = "claude-haiku-4-5" | "claude-sonnet-4-6";
+export type NotesDepth = "concise" | "detailed";
 
 export interface GeneratedActionItem {
   text: string;
