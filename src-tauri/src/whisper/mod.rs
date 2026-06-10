@@ -102,15 +102,31 @@ fn read_wav_f32(path: &str) -> Result<Vec<f32>, String> {
     Ok(out)
 }
 
-/// Run whisper.cpp over the samples (blocking, GPU via Metal). language=auto.
-fn run_whisper(model_path: &str, samples: &[f32]) -> Result<Vec<Seg>, String> {
+/// Run whisper.cpp over the samples (blocking, GPU via Metal).
+/// `language` = None for auto-detect, or e.g. Some("hi") to force.
+fn run_whisper(model_path: &str, samples: &[f32], language: Option<&str>) -> Result<Vec<Seg>, String> {
     let ctx = WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
         .map_err(|e| format!("load model: {e}"))?;
     let mut state = ctx.create_state().map_err(|e| format!("whisper state: {e}"))?;
 
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-    params.set_language(None); // auto-detect (Hindi / English / Hinglish)
+    params.set_language(language); // None = auto (Hindi / English / Hinglish)
     params.set_translate(false); // never translate the transcript
+    // Anti-hallucination: no cross-window context (kills repetition loops like
+    // "the the the"), temperature fallback, and silence/low-confidence skipping.
+    params.set_no_context(true);
+    params.set_suppress_blank(true);
+    params.set_suppress_nst(true);
+    params.set_temperature(0.0);
+    params.set_temperature_inc(0.2);
+    params.set_entropy_thold(2.4);
+    params.set_logprob_thold(-1.0);
+    params.set_no_speech_thold(0.6);
+    let threads = std::thread::available_parallelism()
+        .map(|n| n.get() as i32)
+        .unwrap_or(4)
+        .clamp(1, 8);
+    params.set_n_threads(threads);
     params.set_print_progress(false);
     params.set_print_realtime(false);
     params.set_print_timestamps(false);
@@ -126,13 +142,17 @@ fn run_whisper(model_path: &str, samples: &[f32]) -> Result<Vec<Seg>, String> {
         .to_string();
 
     let n = state.full_n_segments().map_err(|e| e.to_string())?;
-    let mut segs = Vec::new();
+    let mut segs: Vec<Seg> = Vec::new();
     for i in 0..n {
         let text = state.full_get_segment_text(i).unwrap_or_default().trim().to_string();
-        if text.is_empty() {
+        // Drop empty / punctuation-only noise ("-", "...", etc.).
+        if !text.chars().any(|c| c.is_alphanumeric()) {
             continue;
         }
-        // t0/t1 are in centiseconds (10 ms units).
+        // Drop immediate repeats — the classic whisper hallucination loop.
+        if segs.last().map(|p| p.text == text).unwrap_or(false) {
+            continue;
+        }
         let t0 = state.full_get_segment_t0(i).unwrap_or(0);
         let t1 = state.full_get_segment_t1(i).unwrap_or(t0);
         segs.push(Seg {
@@ -143,25 +163,44 @@ fn run_whisper(model_path: &str, samples: &[f32]) -> Result<Vec<Seg>, String> {
             is_final: true,
         });
     }
-    Ok(segs)
+    Ok(drop_repetition_runs(segs))
+}
+
+/// Remove long runs where the same short line repeats (hallucination on silence):
+/// if a line occurs ≥3 times within any 6-segment window, keep only the first.
+fn drop_repetition_runs(segs: Vec<Seg>) -> Vec<Seg> {
+    let mut out: Vec<Seg> = Vec::with_capacity(segs.len());
+    for s in segs {
+        let recent = out.iter().rev().take(6).filter(|p| p.text == s.text).count();
+        if recent >= 2 {
+            continue;
+        }
+        out.push(s);
+    }
+    out
 }
 
 /// Transcribe a finished recording WAV → segments. Downloads the model on first
 /// use, then runs whisper.cpp off the async runtime.
 #[tauri::command]
-pub async fn transcribe_recording(app: AppHandle, wav_path: String) -> Result<Vec<Seg>, String> {
+pub async fn transcribe_recording(
+    app: AppHandle,
+    wav_path: String,
+    language: Option<String>,
+) -> Result<Vec<Seg>, String> {
     let model = ensure_model(&app).await?;
     let model_str = model.to_string_lossy().to_string();
     let _ = app.emit(
         events::RECORDING_STATUS,
         serde_json::json!({"state":"transcribing"}),
     );
+    let lang = language.filter(|s| !s.is_empty() && s != "auto");
     let segs = tauri::async_runtime::spawn_blocking(move || {
         let samples = read_wav_f32(&wav_path)?;
         if samples.is_empty() {
             return Ok::<Vec<Seg>, String>(vec![]);
         }
-        run_whisper(&model_str, &samples)
+        run_whisper(&model_str, &samples, lang.as_deref())
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -185,10 +224,12 @@ mod tests {
         let home = std::env::var("HOME").unwrap();
         let base = format!("{home}/Library/Application Support/ai.oltaflock.glyph");
         let model = format!("{base}/models/{MODEL_FILE}");
-        let wav = format!("{base}/recordings/rec-1780916564408.wav");
+        let wav = std::env::var("GLYPH_TEST_WAV")
+            .unwrap_or_else(|_| format!("{base}/recordings/rec-1780916564408.wav"));
+        let lang = std::env::var("GLYPH_TEST_LANG").ok();
         let samples = read_wav_f32(&wav).expect("read wav");
-        eprintln!("samples: {}", samples.len());
-        let segs = run_whisper(&model, &samples).expect("transcribe");
+        eprintln!("samples: {} lang={:?}", samples.len(), lang);
+        let segs = run_whisper(&model, &samples, lang.as_deref()).expect("transcribe");
         for s in &segs {
             eprintln!("[{}-{} {}] {}", s.start_ms, s.end_ms, s.lang, s.text);
         }

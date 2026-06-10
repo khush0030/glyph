@@ -55,7 +55,8 @@ export function useRecordingController(): RecordingController {
     setTranscribing(true);
     const wav = await rec.stop();
     try {
-      const segs = wav ? await commands.transcribeRecording(wav) : [];
+      const lang = settings.stt_language && settings.stt_language !== "auto" ? settings.stt_language : undefined;
+      const segs = wav ? await commands.transcribeRecording(wav, lang) : [];
       await commands.saveSegments(id, segs);
       await commands.setRecordingResult(id, wav ?? null, rec.elapsed);
       if (segs.length > 0 && settings.audio_retention === "delete") {
@@ -81,7 +82,7 @@ export function useRecordingController(): RecordingController {
       setActiveNoteId(null);
       setFinishedToken((t) => t + 1);
     }
-  }, [activeNoteId, rec, settings.audio_retention, settings.analysis_model, settings.notes_depth]);
+  }, [activeNoteId, rec, settings.audio_retention, settings.analysis_model, settings.notes_depth, settings.stt_language]);
 
   return {
     recording: rec.recording,

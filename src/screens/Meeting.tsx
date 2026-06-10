@@ -137,7 +137,38 @@ export default function Meeting({
     await commands.deleteNote(noteId).catch(() => {});
     onDeleted();
   }
-  const isBusy = isRecording || transcribing || generating;
+
+  // Re-run transcription on the saved audio (e.g. after a bad first pass, or to
+  // force a language), then regenerate notes. Only possible if audio was kept.
+  const [retx, setRetx] = useState(false);
+  async function retranscribe() {
+    if (!note?.audioPath || retx) return;
+    setRetx(true);
+    setGenError(null);
+    try {
+      const lang =
+        settings.stt_language && settings.stt_language !== "auto" ? settings.stt_language : undefined;
+      const segs = await commands.transcribeRecording(note.audioPath, lang);
+      await commands.saveSegments(noteId, segs);
+      const text = segs.map((s) => s.text).join("\n");
+      if (text.trim() || scratch.trim()) {
+        const g = await commands.generateNotes(
+          text,
+          scratch,
+          settings.analysis_model as AnalysisModelId,
+          depth
+        );
+        await commands.saveGenerated(noteId, g);
+      }
+      await reload();
+    } catch (e) {
+      setGenError(`Re-transcription failed: ${e}`);
+    } finally {
+      setRetx(false);
+    }
+  }
+
+  const isBusy = isRecording || transcribing || generating || retx;
 
   return (
     <div className="animate-fade">
@@ -156,7 +187,7 @@ export default function Meeting({
                 <span className="text-rec font-semibold">● Recording {fmt(elapsed)}</span>{" "}
                 · mic + system audio
               </>
-            ) : transcribing ? (
+            ) : transcribing || retx ? (
               <span className="text-indigo font-semibold">
                 {statusMsg || "Transcribing on this Mac…"}
               </span>
@@ -170,7 +201,12 @@ export default function Meeting({
           </div>
         </div>
         <div className="flex items-center gap-[9px] shrink-0">
-          <Seg title="Language" options={["Auto", <span className="dev">हिं</span>, "EN"]} />
+          <Seg
+            title="Transcription language"
+            options={["Auto", <span className="dev">हिं</span>, "EN"]}
+            value={["auto", "hi", "en"].indexOf(settings.stt_language) === -1 ? 0 : ["auto", "hi", "en"].indexOf(settings.stt_language)}
+            onChange={(i) => setSetting("stt_language", ["auto", "hi", "en"][i])}
+          />
           {isRecording ? (
             <RecordButton onStop={onStop} />
           ) : transcribing ? (
@@ -281,6 +317,16 @@ export default function Meeting({
               >
                 Show local files (transcript + notes) →
               </button>
+              {note?.audioPath && (
+                <button
+                  type="button"
+                  onClick={retranscribe}
+                  disabled={isBusy}
+                  className="mt-[8px] w-full text-[12.5px] font-semibold text-muted hover:text-ink text-left disabled:opacity-40"
+                >
+                  {retx ? "Re-transcribing…" : "Re-transcribe audio (uses language above) ↻"}
+                </button>
+              )}
             </div>
           </aside>
         </div>
