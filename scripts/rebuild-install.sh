@@ -8,7 +8,8 @@ cd "$REPO"
 export PATH="$HOME/.cargo/bin:$PATH"
 
 APP="$REPO/src-tauri/target/release/bundle/macos/Glyph.app"
-DMG="$REPO/src-tauri/target/release/bundle/dmg/Glyph_0.0.0_aarch64.dmg"
+VERSION="$(grep -m1 '"version"' "$REPO/src-tauri/tauri.conf.json" | sed -E 's/.*"version" *: *"([^"]+)".*/\1/')"
+DMG="$REPO/src-tauri/target/release/bundle/dmg/Glyph_${VERSION}_aarch64.dmg"
 
 echo "==> Quitting any running Glyph…"
 osascript -e 'quit app "glyph"' 2>/dev/null || true
