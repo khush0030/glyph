@@ -1,6 +1,6 @@
 [package]
 name = "glyph"
-version = "0.0.0"
+version = "0.1.0"
 description = "Glyph — desktop-first macOS meeting notetaker"
 authors = ["OltaFlock AI"]
 edition = "2021"
