@@ -1,9 +1,10 @@
-// NoteGenerator — transcript + scratch → structured markdown. Cloud: Claude
-// Haiku 4.5 / Sonnet 4.6 (M3). Local: Ollama (M8). Never translates lines.
+// NoteGenerator — transcript + scratch → structured markdown. Cloud: OpenAI
+// GPT-4o (M3, two-pass: proofread then summarize). Local: Ollama (M8). Never
+// translates lines.
 
 import type { Segment } from "./Transcriber";
 
-export type AnalysisModel = "claude-haiku-4-5" | "claude-sonnet-4-6";
+export type AnalysisModel = "gpt-4o-mini" | "gpt-4o";
 
 export interface ActionItem {
   text: string;

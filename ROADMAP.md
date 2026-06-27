@@ -22,8 +22,8 @@ Build `audiocap` standalone first: Core Audio tap (system audio) + AVAudioEngine
 
 ---
 
-### M3 — Analysis, Claude Haiku 4.5 (1 day)
-`NoteGenerator` → Anthropic `claude-haiku-4-5` with the §7 prompt. On Stop, fold transcript + scratch into the four sections, **action items emitted as structured rows** `{text, assignee?, dueHint?}`. Verify it does NOT translate and surfaces scratch notes.
+### M3 — Analysis, OpenAI GPT-4o (1 day)
+`NoteGenerator` → OpenAI Chat Completions, `gpt-4o-mini`, two-pass (proofread the transcript, then summarize) with the §7 contract. On Stop, fold transcript + scratch into the sections, **action items emitted as structured rows** `{text, assignee?, dueHint?}`. Verify it does NOT translate and surfaces scratch notes.
 **Done when:** stopping a mixed-language recording yields clean notes preserving each line's language, with structured action items + inferred assignees.
 
 ---
@@ -47,7 +47,7 @@ Build `audiocap` standalone first: Core Audio tap (system audio) + AVAudioEngine
 ---
 
 ### M7 — Settings, cost display & polish (1 day)
-Settings page wired: engine (Cloud now; Private placeholder), analysis model (Haiku/Sonnet), integration connect/disconnect, auto-record default, audio retention, permissions + deep-links, Scribe per-hour cost note, recording indicator + optional auto-disclosure line. Appearance: Light/Dark/System theme (CSS-variable palette, follows macOS in System mode), persisted in settings.
+Settings page wired: engine (Cloud now; Private placeholder), analysis model (GPT-4o-mini/GPT-4o), integration connect/disconnect, auto-record default, audio retention, permissions + deep-links, recording indicator + optional auto-disclosure line. Appearance: Light/Dark/System theme (CSS-variable palette, follows macOS in System mode), persisted in settings.
 **Done when:** every toggle in `design/mockup.html` Settings is functional and persists, and the theme toggle flips the whole app light/dark (System tracks macOS).
 
 ---

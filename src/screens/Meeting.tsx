@@ -4,8 +4,10 @@ import RecordButton from "../components/RecordButton";
 import NotesView from "../components/NotesView";
 import Transcript from "../components/Transcript";
 import AsanaModal from "../components/AsanaModal";
+import EmailModal from "../components/EmailModal";
 import { type Segment } from "../lib/useTranscript";
 import { useSettings } from "../lib/useSettings";
+import { buildNotePdfBase64 } from "../lib/pdf";
 import { commands, type NoteDetail, type AnalysisModelId, type NotesDepth } from "../lib/ipc";
 
 type Tab = "notes" | "transcript";
@@ -42,6 +44,8 @@ export default function Meeting({
 }) {
   const [tab, setTab] = useState<Tab>(isRecording ? "transcript" : "notes");
   const [asanaOpen, setAsanaOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [note, setNote] = useState<NoteDetail | null>(null);
   const [title, setTitle] = useState("");
   const [scratch, setScratch] = useState("");
@@ -136,6 +140,21 @@ export default function Meeting({
   async function remove() {
     await commands.deleteNote(noteId).catch(() => {});
     onDeleted();
+  }
+
+  // Build the PDF in the webview, hand the bytes to Rust to save + open.
+  async function exportPdf() {
+    if (!note) return;
+    setExporting(true);
+    setGenError(null);
+    try {
+      const b64 = buildNotePdfBase64(note);
+      await commands.saveNotePdf(noteId, b64);
+    } catch (e) {
+      setGenError(`PDF export failed: ${e}`);
+    } finally {
+      setExporting(false);
+    }
   }
 
   // Re-run transcription on the saved audio (e.g. after a bad first pass, or to
@@ -285,6 +304,9 @@ export default function Meeting({
             onAddActionItem={addActionItem}
             onDeleteActionItem={deleteActionItem}
             onOpenAsana={() => setAsanaOpen(true)}
+            onExportPdf={exportPdf}
+            onEmail={() => setEmailOpen(true)}
+            exporting={exporting}
           />
           <aside>
             <div className="bg-surface border border-line rounded-r shadow-card px-[18px] py-4 mb-[18px]">
@@ -341,6 +363,10 @@ export default function Meeting({
           onClose={() => setAsanaOpen(false)}
           onSent={reload}
         />
+      )}
+
+      {emailOpen && note && (
+        <EmailModal note={note} onClose={() => setEmailOpen(false)} />
       )}
     </div>
   );

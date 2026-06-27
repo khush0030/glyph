@@ -77,13 +77,13 @@ export default function Settings() {
         />
         <SRow
           title="Analysis model"
-          desc="Haiku 4.5 for everyday notes (~2¢/meeting). Sonnet 4.6 for sharper action items on important calls."
+          desc="Each meeting runs two OpenAI passes — proofread the transcript, then summarize. GPT-4o mini is cheap (well under 1¢/meeting); GPT-4o is sharper on long, messy calls."
           control={
             <Seg
-              options={["Haiku 4.5", "Sonnet 4.6"]}
-              value={idx(["claude-haiku-4-5", "claude-sonnet-4-6"], values.analysis_model)}
+              options={["GPT-4o mini", "GPT-4o"]}
+              value={idx(["gpt-4o-mini", "gpt-4o"], values.analysis_model)}
               onChange={(i) =>
-                set("analysis_model", ["claude-haiku-4-5", "claude-sonnet-4-6"][i])
+                set("analysis_model", ["gpt-4o-mini", "gpt-4o"][i])
               }
             />
           }

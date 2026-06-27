@@ -27,6 +27,9 @@ export default function NotesView({
   onAddActionItem,
   onDeleteActionItem,
   onOpenAsana,
+  onExportPdf,
+  onEmail,
+  exporting,
 }: {
   generated: GeneratedDisplay | null;
   actionItems: StoredActionItem[];
@@ -39,6 +42,9 @@ export default function NotesView({
   onAddActionItem: (text: string) => void;
   onDeleteActionItem: (id: string) => void;
   onOpenAsana: () => void;
+  onExportPdf: () => void;
+  onEmail: () => void;
+  exporting: boolean;
 }) {
   const depthToggle = (
     <Seg
@@ -55,7 +61,7 @@ export default function NotesView({
       <div className={card}>
         <div className="inline-flex items-center gap-[7px] text-[11.5px] font-semibold text-indigo-deep bg-indigo-soft px-3 py-[5px] rounded-[20px] mb-[18px]">
           <span className="w-[6px] h-[6px] rounded-full bg-indigo animate-pulse-dot" />
-          Cleaning with Claude…
+          Proofreading & summarizing…
         </div>
         <div className="space-y-3">
           {[90, 80, 95, 60].map((w, i) => (
@@ -82,7 +88,7 @@ export default function NotesView({
         <>
           <div className="inline-flex items-center gap-[7px] text-[11.5px] font-semibold text-indigo-deep bg-indigo-soft px-3 py-[5px] rounded-[20px] mb-[18px]">
             <span className="w-[6px] h-[6px] rounded-full bg-indigo" />
-            Cleaned by {modelLabel(generated.model)} · language preserved
+            Proofread & summarized by {modelLabel(generated.model)}
           </div>
 
           {generated.summary && (
@@ -160,6 +166,27 @@ export default function NotesView({
           </Btn>
         </div>
       )}
+
+      {generated && (
+        <div className="mt-6 pt-[18px] border-t border-line-soft flex items-center justify-between gap-3">
+          <div className="text-[12.5px] text-muted leading-[1.45]">
+            Share these notes — export a PDF or email it to the attendees.
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onExportPdf}
+              disabled={exporting}
+              className="text-[12.5px] font-semibold border border-line rounded-[10px] px-[13px] py-[9px] hover:border-faint disabled:opacity-40"
+            >
+              {exporting ? "Exporting…" : "Export PDF"}
+            </button>
+            <Btn variant="primary" onClick={onEmail}>
+              Email attendees
+            </Btn>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -173,7 +200,7 @@ function Bullet({ text }: { text: string }) {
 }
 
 function modelLabel(model: string): string {
-  if (model.includes("sonnet")) return "Claude Sonnet 4.6";
-  if (model.includes("haiku")) return "Claude Haiku 4.5";
-  return model || "Claude";
+  if (model === "gpt-4o-mini") return "GPT-4o mini";
+  if (model === "gpt-4o") return "GPT-4o";
+  return model || "GPT-4o";
 }

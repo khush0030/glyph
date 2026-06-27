@@ -1,6 +1,6 @@
 # SPEC.md — Glyph Technical Specification
 
-> Desktop-first macOS meeting notetaker. Mic + system audio → Scribe v2 (Hindi/English/Hinglish) → Claude Haiku 4.5 structured notes. Calendar-driven + manual recording. Action items → Asana. Cloud first; local Private Mode later. Minimal.
+> Desktop-first macOS meeting notetaker. Mic + system audio → local Whisper (Hindi/English/Hinglish) → OpenAI GPT-4o structured notes (proofread, then summarize). Calendar-driven + manual recording. Action items → Asana; notes → PDF / Gmail. Minimal.
 
 ---
 
@@ -10,7 +10,7 @@
 - Calendar-driven recording: show upcoming meetings, detect video links, auto- or ask-to-record at start time.
 - Capture mic + system audio with no meeting bot and no virtual-audio-device install.
 - Live transcript while recording; Hindi / English / Hinglish via Scribe v2 (language = multi).
-- Fold transcript + scratch notes into Summary / Key points / Decisions / Action items via Haiku 4.5.
+- Fold transcript + scratch notes into Summary / Key points / Decisions / Action items via OpenAI GPT-4o.
 - Push action items to **Asana** as tasks with assignee, due date, and project.
 - **Add action items and notes manually** (with no recording) — quick-capture "anything on your mind", editable AI output, and blank "New note".
 - A dedicated **Calendar** page listing all upcoming meetings (grouped by day) and a **Notes** library of past meetings.
@@ -38,18 +38,18 @@
  events │ (transcript, level, status)        │ commands
 ┌───────┴───────────────────────────────────▼─────────────────┐
 │ Tauri Core (Rust)                                            │
-│  AudioController · Scribe WS client · Anthropic client       │
+│  AudioController · whisper.cpp · OpenAI client               │
 │  Google Calendar client · Asana client · SQLite · Keychain   │
 └───┬────────────────┬───────────────┬───────────────┬─────────┘
 PCM │           WS   │          HTTPS │          HTTPS│
 ┌───▼────────┐ ┌─────▼──────┐ ┌───────▼──────┐ ┌──────▼───────┐
-│ audiocap   │ │ Scribe v2  │ │ Anthropic     │ │ Google Cal / │
-│ (Swift)    │ │ Realtime   │ │ Haiku 4.5     │ │ Asana APIs   │
+│ audiocap   │ │ whisper.cpp│ │ OpenAI        │ │ Google Cal / │
+│ (Swift)    │ │ (local)    │ │ GPT-4o        │ │ Asana APIs   │
 └────────────┘ └────────────┘ └──────────────┘ └──────────────┘
 ```
 All credentials in the macOS Keychain. No web backend.
 
-**Recording flow:** trigger (manual button OR calendar start time) → `audiocap` streams 16 kHz PCM → Rust → Scribe WS → live segments emitted to UI → saved. On **Stop**, transcript + scratch → Haiku → markdown notes. Action items are parsed into structured rows the user can push to Asana.
+**Recording flow:** trigger (manual button OR calendar start time) → `audiocap` streams 16 kHz PCM → Rust → saved WAV. On **Stop**, local Whisper transcribes → transcript + scratch → OpenAI (proofread, then summarize) → markdown notes. Action items are parsed into structured rows the user can push to Asana.
 
 ---
 
@@ -88,10 +88,11 @@ Swift CLI `audiocap`. References: `insidegui/AudioCap`, `AudioTee`.
 - Behind `Transcriber` so local Whisper drops in later (Private Mode).
 - Set the ElevenLabs account to its strictest available retention.
 
-## 7. Analysis — Claude Haiku 4.5 (cloud default)
-- Rust calls Anthropic Messages API, model `claude-haiku-4-5`, key from Keychain. Prompt in `lib/prompt.ts`.
-- **Prompt contract:** Markdown with `Summary`, `Key points`, `Decisions`, `Action items`. **Each action item must be structured** — `{ text, assignee?, dueHint? }` — so it can map to Asana. **Never translate**; preserve each line's language. Treat scratch notes as high-priority. Terse, no preamble.
-- ~$0.02/meeting. Offer Sonnet 4.6 ("deep notes") toggle. Batch API for non-instant generation halves cost.
+## 7. Analysis — OpenAI GPT-4o (cloud default)
+- Rust calls the OpenAI Chat Completions API, model `gpt-4o-mini` (default), key from Keychain. Implemented in `notes/mod.rs`.
+- **Two passes:** (1) proofread the raw transcript — fix STT errors, grammar, filler; same language, no summary, no translation; (2) summarize the cleaned transcript into structured notes via a forced `emit_notes` function call.
+- **Output contract:** `{ summary, key_points, decisions, open_questions, action_items[] }`. **Each action item is structured** — `{ text, assignee?, dueHint? }` — so it can map to Asana. Notes are written in **English** (Hindi/Hinglish translated for the notes); the verbatim transcript is preserved unchanged. Treat scratch notes as high-priority. Terse, no preamble.
+- Well under 1¢/meeting on `gpt-4o-mini`. Offer `gpt-4o` ("deep notes") toggle for long, messy calls.
 
 ## 8. Calendar — Google Calendar (`CalendarSource`)
 - OAuth (PKCE, system browser, loopback redirect), token in Keychain. Scope: read-only calendar events.
@@ -132,6 +133,6 @@ Same interfaces, local implementations: `Transcriber` → whisper.cpp (whisper-r
 ## 14. References
 - `insidegui/AudioCap`, `AudioTee` (Core Audio tap, macOS 14.4+).
 - ElevenLabs Scribe v2 Realtime WebSocket API.
-- Anthropic Messages API, `claude-haiku-4-5`.
+- OpenAI Chat Completions API, `gpt-4o-mini` / `gpt-4o`.
 - Google Calendar API (OAuth PKCE, `conferenceData`).
 - Asana API (OAuth, tasks/projects/users).

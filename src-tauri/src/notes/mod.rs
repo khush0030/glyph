@@ -1,39 +1,54 @@
-//! NoteGenerator — Anthropic Messages API. Folds the transcript + the user's
-//! scratch notes into structured notes (SPEC §7): Summary, Key points,
-//! Decisions, and Action items as structured rows { text, assignee?, dueHint? }.
+//! NoteGenerator — OpenAI Chat Completions API. Two passes:
+//!   1. CLEAN — proofread the raw transcript (fix STT errors, grammar, filler;
+//!      same language, no summary) so the model summarizes accurate text.
+//!   2. NOTES — fold the cleaned transcript + the user's scratch into structured
+//!      notes (SPEC §7): Summary, Key points, Decisions, Action items.
 //!
 //! Rules baked into the prompt: the notes are ALWAYS written in English (Hindi/
 //! Hinglish meetings are translated for the summary), scratch is high-priority.
 //! The verbatim transcript is stored separately and is never translated.
-//! Structured output is obtained via a forced tool call.
+//! Structured output is obtained via a forced tool (function) call.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::keychain;
 
-const API_URL: &str = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL: &str = "claude-haiku-4-5";
+const API_URL: &str = "https://api.openai.com/v1/chat/completions";
+const DEFAULT_MODEL: &str = "gpt-4o-mini";
 
-const CONCISE_PROMPT: &str = "You convert raw meeting transcripts into clean, structured notes by calling the emit_notes tool. The full verbatim transcript is saved separately, so your job is a SHARP SUMMARY — capture what someone needs to remember and act on, not every sentence.
+/// Pass 1 — proofread the raw transcript before it is summarized. Keeps the
+/// spoken language and every fact; only fixes recognition noise.
+const CLEAN_PROMPT: &str = "You are a meticulous transcript proofreader. You receive a raw speech-to-text transcript of a meeting — it may be Hindi, English, or Hinglish, with recognition errors, missing punctuation, filler words, false starts, and repeated phrases.
 
-CONCISE BUT COMPLETE — capture what matters, drop the rest:
-- summary: 2-4 sentences. The essence of the meeting. Not a wall of text.
-- key_points: only the important, distinct facts and topics. Merge related ideas into one bullet. The vital few, not an exhaustive list — aim for roughly 4-8.
-- decisions: only actual decisions reached.
-- open_questions: only genuinely unresolved important questions. Often few or none.
+Return a corrected transcript:
+- Fix transcription/spelling errors, punctuation, and obviously wrong words using context.
+- Remove filler ('um', 'uh', 'haan haan'), false starts, and verbatim repetitions.
+- Join broken fragments so each line reads cleanly.
+- Keep the SAME language that was spoken on every line — do NOT translate.
+- Do NOT summarize, add, reorder, or drop any information or speaker intent.
+
+Output ONLY the corrected transcript text — no commentary, no labels.";
+
+const CONCISE_PROMPT: &str = "You convert a meeting transcript into tight, structured notes by calling the emit_notes tool. The full transcript is saved separately — your job is the sharp signal, not a recap. A reader skims this in 30 seconds and knows what happened and what to do.
+
+Be ruthless. Cut anything obvious, filler, or already implied:
+- summary: 2-3 sentences MAX. What the meeting was about and what came out of it. No preamble, no 'the team discussed'.
+- key_points: only what a reader must keep — distinct facts, numbers, context. Merge related ideas into one bullet. Usually 3-6 bullets. Never restate the summary.
+- decisions: only firm decisions actually reached.
+- open_questions: only real unresolved questions. Often none.
 - action_items: concrete tasks someone must do, with owner + deadline if stated.
 
-NO REDUNDANCY: each fact belongs in ONE section only. Do not restate the summary as key points, or repeat a decision as a key point or action item. If it is a decision, it is not also a key point.
+NO REDUNDANCY: each fact lives in exactly ONE section. Never repeat a point across summary / key points / decisions / action items.
 
 FAITHFULNESS:
 - NEVER invent, assume, or embellish. Only what is in the transcript or scratch notes.
-- ALWAYS write the notes in English. If the meeting was spoken in Hindi or Hinglish, translate the meaning into clear, natural English. Every field — summary, key points, decisions, open questions, action items — must be in English (Latin script), never Devanagari. (The original transcript is preserved separately and unchanged.)
-- Treat the user's scratch notes as high-priority intent.
+- ALWAYS write the notes in clear, natural English. If the meeting was spoken in Hindi or Hinglish, translate the meaning into English. Every field must be English (Latin script), never Devanagari. (The original transcript is preserved separately and unchanged.)
+- Treat the user's scratch notes as high-priority intent — weight them heavily.
 - Return every field as a normal JSON value (arrays of plain strings, objects with text/assignee/due_hint). Never use XML, <item> tags, or markup inside fields.
 - If an action item's owner or deadline is not stated, OMIT that field. Never output placeholders like 'unknown', 'N/A', 'TBD', 'none', or '<UNKNOWN>'.
 
-Prefer fewer, denser bullets. A reader should scan the whole note in under a minute. Important nuance lives in the transcript; the notes are the summary.";
+Fewer, denser, sharper. When in doubt, cut it.";
 
 const DETAILED_PROMPT: &str = "You convert raw meeting transcripts into thorough, structured notes by calling the emit_notes tool. Capture everything important — but stay organized and non-repetitive.
 
@@ -67,7 +82,7 @@ fn clean_field(v: Option<String>) -> Option<String> {
 }
 
 // ---- Tolerant parsing -------------------------------------------------------
-// The model usually returns clean JSON, but Haiku occasionally emits the tool
+// The model usually returns clean JSON, but it occasionally emits the tool
 // input as XML-ish text (<item>…</item>, <parameter name="…">) inside a single
 // string field. These helpers recover the notes either way instead of failing.
 
@@ -278,64 +293,90 @@ pub async fn generate_notes(
     model: Option<String>,
     depth: Option<String>,
 ) -> Result<GeneratedNote, String> {
-    let key = keychain::get("anthropic_api_key")
+    let key = keychain::get("openai_api_key")
         .map_err(|e| e.to_string())?
-        .ok_or("No Anthropic API key — add it in Settings → API keys.")?;
-    let model = model.unwrap_or_else(|| DEFAULT_MODEL.to_string());
+        .filter(|s| !s.is_empty())
+        .ok_or("No OpenAI API key — add it in Settings → API keys.")?;
+    // Guard against a stale stored model id (e.g. a legacy non-OpenAI value):
+    // only OpenAI chat models are valid against this endpoint.
+    let model = match model {
+        Some(m) if m.starts_with("gpt") => m,
+        _ => DEFAULT_MODEL.to_string(),
+    };
+
+    let client = reqwest::Client::new();
+
+    // Pass 1 — proofread the transcript before summarizing. Best effort: any
+    // failure falls back to the raw transcript so notes still generate.
+    let transcript = transcript.trim().to_string();
+    let cleaned = if transcript.is_empty() {
+        String::new()
+    } else {
+        clean_transcript(&client, &key, &model, &transcript)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("transcript cleanup failed, using raw: {e}");
+                transcript.clone()
+            })
+    };
+    let effective = if cleaned.trim().is_empty() { &transcript } else { &cleaned };
+
+    // Pass 2 — fold the cleaned transcript + scratch into structured notes.
     let system_prompt = if depth.as_deref() == Some("detailed") {
         DETAILED_PROMPT
     } else {
         CONCISE_PROMPT
     };
-
     let user_prompt = format!(
         "TRANSCRIPT:\n{}\n\nSCRATCH NOTES (high priority):\n{}",
-        if transcript.trim().is_empty() { "(none)" } else { transcript.trim() },
+        if effective.trim().is_empty() { "(none)" } else { effective.trim() },
         if scratch.trim().is_empty() { "(none)" } else { scratch.trim() },
     );
 
     let tool = json!({
-        "name": "emit_notes",
-        "description": "Return the cleaned, structured meeting notes.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "summary": { "type": "string", "description": "Concise but complete summary covering all major topics, in the source language(s)." },
-                "key_points": { "type": "array", "items": { "type": "string" }, "description": "Every substantive point, detail, number, and discussion item. Be thorough — do not omit." },
-                "decisions": { "type": "array", "items": { "type": "string" }, "description": "Every decision reached, including tentative/conditional ones." },
-                "open_questions": { "type": "array", "items": { "type": "string" }, "description": "Questions or issues raised but left unresolved — things that still need an answer or follow-up." },
-                "action_items": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "text": { "type": "string" },
-                            "assignee": { "type": "string", "description": "Inferred owner, if any." },
-                            "due_hint": { "type": "string", "description": "e.g. 'Fri', 'next week', if mentioned." }
-                        },
-                        "required": ["text"]
+        "type": "function",
+        "function": {
+            "name": "emit_notes",
+            "description": "Return the cleaned, structured meeting notes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": { "type": "string", "description": "Sharp 2-3 sentence summary of what the meeting was about and its outcome." },
+                    "key_points": { "type": "array", "items": { "type": "string" }, "description": "Only the distinct facts/numbers/context a reader must keep. Usually 3-6." },
+                    "decisions": { "type": "array", "items": { "type": "string" }, "description": "Firm decisions actually reached." },
+                    "open_questions": { "type": "array", "items": { "type": "string" }, "description": "Real unresolved questions. Often none." },
+                    "action_items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "text": { "type": "string" },
+                                "assignee": { "type": "string", "description": "Inferred owner, if any." },
+                                "due_hint": { "type": "string", "description": "e.g. 'Fri', 'next week', if mentioned." }
+                            },
+                            "required": ["text"]
+                        }
                     }
-                }
-            },
-            "required": ["summary", "key_points", "decisions", "open_questions", "action_items"]
+                },
+                "required": ["summary", "key_points", "decisions", "open_questions", "action_items"]
+            }
         }
     });
 
     let body = json!({
         "model": model,
-        "max_tokens": 8000,
-        "system": system_prompt,
+        "temperature": 0.3,
         "tools": [tool],
-        "tool_choice": { "type": "tool", "name": "emit_notes" },
-        "messages": [{ "role": "user", "content": user_prompt }]
+        "tool_choice": { "type": "function", "function": { "name": "emit_notes" } },
+        "messages": [
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": user_prompt }
+        ]
     });
 
-    let client = reqwest::Client::new();
     let resp = client
         .post(API_URL)
-        .header("x-api-key", key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
+        .bearer_auth(&key)
         .json(&body)
         .send()
         .await
@@ -352,28 +393,79 @@ pub async fn generate_notes(
             .and_then(|e| e.get("message"))
             .and_then(|m| m.as_str())
             .unwrap_or("unknown error");
-        return Err(format!("Anthropic API {status}: {msg}"));
+        return Err(format!("OpenAI API {status}: {msg}"));
     }
 
-    // Find the forced tool_use block and parse its input into GeneratedNote.
-    let input = v
-        .get("content")
+    // The forced function call returns its arguments as a JSON string.
+    let args = v
+        .get("choices")
         .and_then(|c| c.as_array())
-        .and_then(|blocks| {
-            blocks
-                .iter()
-                .find(|b| b.get("type").and_then(|t| t.as_str()) == Some("tool_use"))
-        })
-        .and_then(|b| b.get("input"))
-        .ok_or("no tool_use block in response")?;
+        .and_then(|a| a.first())
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("tool_calls"))
+        .and_then(|t| t.as_array())
+        .and_then(|a| a.first())
+        .and_then(|c| c.get("function"))
+        .and_then(|f| f.get("arguments"))
+        .and_then(|a| a.as_str())
+        .ok_or("no tool call in response")?;
+    let input: Value =
+        serde_json::from_str(args).map_err(|e| format!("bad tool arguments: {e}"))?;
 
-    let mut note = parse_notes(input);
+    let mut note = parse_notes(&input);
     for item in &mut note.action_items {
         item.assignee = clean_field(item.assignee.take());
         item.due_hint = clean_field(item.due_hint.take());
     }
     note.model = model;
     Ok(note)
+}
+
+/// Pass 1 — ask the model to proofread the raw transcript. Returns the cleaned
+/// text (same language, no summary). Errors propagate so the caller can fall
+/// back to the raw transcript.
+async fn clean_transcript(
+    client: &reqwest::Client,
+    key: &str,
+    model: &str,
+    transcript: &str,
+) -> Result<String, String> {
+    let body = json!({
+        "model": model,
+        "temperature": 0.2,
+        "max_tokens": 16000,
+        "messages": [
+            { "role": "system", "content": CLEAN_PROMPT },
+            { "role": "user", "content": transcript }
+        ]
+    });
+    let resp = client
+        .post(API_URL)
+        .bearer_auth(key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    let status = resp.status();
+    let v: Value = resp.json().await.map_err(|e| format!("bad response: {e}"))?;
+    if !status.is_success() {
+        let msg = v
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("unknown error");
+        return Err(format!("OpenAI API {status}: {msg}"));
+    }
+    Ok(v
+        .get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|a| a.first())
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|s| s.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string())
 }
 
 #[cfg(test)]

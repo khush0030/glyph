@@ -11,23 +11,16 @@ interface Field {
 
 const FIELDS: Field[] = [
   {
-    id: "elevenlabs_api_key",
-    title: "ElevenLabs",
-    desc: "Scribe v2 speech-to-text for live transcription (~$0.28/hr).",
-    placeholder: "sk_…",
-    hint: "elevenlabs.io → Profile → API Keys",
-  },
-  {
-    id: "anthropic_api_key",
-    title: "Anthropic",
-    desc: "Claude Haiku 4.5 / Sonnet 4.6 — turns transcripts into structured notes.",
-    placeholder: "sk-ant-…",
-    hint: "console.anthropic.com → API Keys",
+    id: "openai_api_key",
+    title: "OpenAI",
+    desc: "GPT-4o — proofreads the transcript, then turns it into structured notes.",
+    placeholder: "sk-…",
+    hint: "platform.openai.com → API keys",
   },
   {
     id: "google_oauth_client_id",
     title: "Google OAuth client ID",
-    desc: "Desktop OAuth client for Google Calendar.",
+    desc: "Desktop OAuth client for Google Calendar + emailing notes via Gmail.",
     placeholder: "…apps.googleusercontent.com",
     hint: "console.cloud.google.com → Credentials → OAuth client (Desktop)",
   },

@@ -70,8 +70,23 @@ export const commands = {
   calendarConnect: () => invoke<void>("calendar_connect"),
   calendarDisconnect: () => invoke<void>("calendar_disconnect"),
   calendarUpcoming: () => invoke<CalendarEvent[]>("calendar_upcoming"),
+  // Best-effort attendee emails for a finished meeting, matched by title across
+  // recent + upcoming calendar events. Empty if not connected or no match.
+  calendarAttendees: (title: string) =>
+    invoke<string[]>("calendar_attendees", { title }),
 
-  // Notes — fold transcript + scratch into structured notes via Claude.
+  // Export / share — build the PDF in the webview, hand the bytes to Rust.
+  saveNotePdf: (noteId: string, pdfBase64: string) =>
+    invoke<string>("save_note_pdf", { noteId, pdfBase64 }),
+  gmailSend: (
+    to: string[],
+    subject: string,
+    body: string,
+    pdfBase64: string,
+    filename: string
+  ) => invoke<void>("gmail_send", { to, subject, body, pdfBase64, filename }),
+
+  // Notes — fold transcript + scratch into structured notes via OpenAI.
   generateNotes: (
     transcript: string,
     scratch: string,
@@ -96,6 +111,7 @@ export interface CalendarEvent {
   link: string | null;
   platform: string | null;
   attendees: string[];
+  attendeeEmails: string[];
   autoRecord: string;
 }
 
@@ -124,7 +140,7 @@ export interface Permissions {
   screen: ScreenPermission;
 }
 
-export type AnalysisModelId = "claude-haiku-4-5" | "claude-sonnet-4-6";
+export type AnalysisModelId = "gpt-4o-mini" | "gpt-4o";
 export type NotesDepth = "concise" | "detailed";
 
 export interface GeneratedActionItem {
@@ -192,8 +208,7 @@ export interface NoteDetail {
 }
 
 export type CredentialId =
-  | "elevenlabs_api_key"
-  | "anthropic_api_key"
+  | "openai_api_key"
   | "google_oauth_client_id"
   | "google_oauth_client_secret"
   | "asana_access_token";

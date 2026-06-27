@@ -54,7 +54,7 @@ outside the app — see [Where your data lives](#where-your-data-lives)).
 
 ## First-run setup
 
-**1. Add your Anthropic API key** (required for generating notes; transcription
+**1. Add your OpenAI API key** (required for generating notes; transcription
 is local and needs no key).
 
 Create a file at:
@@ -66,16 +66,16 @@ Create a file at:
 with:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
 ```
 
-Get a key at <https://console.anthropic.com/settings/keys>. Google Calendar and
+Get a key at <https://platform.openai.com/api-keys>. Google Calendar and
 Asana keys are optional — see [`.env.example`](.env.example) for the full list.
 Quick way to create it:
 
 ```bash
 mkdir -p ~/Library/Application\ Support/ai.oltaflock.glyph
-printf 'ANTHROPIC_API_KEY=sk-ant-REPLACE_ME\n' > ~/Library/Application\ Support/ai.oltaflock.glyph/.env
+printf 'OPENAI_API_KEY=sk-REPLACE_ME\n' > ~/Library/Application\ Support/ai.oltaflock.glyph/.env
 ```
 
 Then quit and reopen Glyph.
@@ -102,9 +102,12 @@ remembered).
 - **Transcribes locally** with whisper.cpp (Whisper large-v3-turbo, Metal GPU) —
   Hindi / English / Hinglish, in the language actually spoken. No cloud, no
   per-minute cost, no quota. Transcription runs **after you stop**.
-- **Generates structured notes** with Claude — Summary · Key points · Decisions ·
-  Open questions · Action items. Notes are written in **English**; the verbatim
-  transcript stays in the original language. Toggle **Concise / Detailed**.
+- **Generates structured notes** with OpenAI (GPT-4o) — it first proofreads the
+  transcript, then writes Summary · Key points · Decisions · Open questions ·
+  Action items. Notes are written in **English**; the verbatim transcript stays
+  in the original language. Toggle **Concise / Detailed**.
+- **Exports & shares** — download notes as a PDF, or email them (PDF attached)
+  to the meeting's attendees via Gmail.
 - **Pulls upcoming meetings** from Google Calendar (optional) and can auto- or
   ask-to-record at start time.
 - **Exports action items to Asana** (optional) as tasks with assignee/due/project.
@@ -118,12 +121,12 @@ remembered).
 React + TS + Tailwind  (Tauri v2 WebView)
         │  IPC (typed commands/events)
         ▼
-Tauri Core (Rust)  ──  AudioController · whisper.cpp · Anthropic · Google Cal · Asana · SQLite
+Tauri Core (Rust)  ──  AudioController · whisper.cpp · OpenAI · Google Cal · Gmail · Asana · SQLite
         │
    ┌────┴───────────────┬─────────────────────┬──────────────────────┐
    ▼                    ▼                     ▼                      ▼
-audiocap (Swift)   whisper.cpp (local)   Claude Haiku 4.5      Google Cal / Asana
-mic + system tap   large-v3-turbo, Metal (structured notes)    (OAuth, PKCE)  [optional]
+audiocap (Swift)   whisper.cpp (local)   OpenAI GPT-4o         Google Cal / Gmail / Asana
+mic + system tap   large-v3-turbo, Metal (clean + notes)       (OAuth, PKCE)  [optional]
 → 16kHz mono WAV   transcribe-after-stop
 ```
 
@@ -134,7 +137,7 @@ each can change without touching the UI.
 |------------------|-------------------------------------------------|
 | `AudioSource`    | Native Swift sidecar (`audiocap`)               |
 | `Transcriber`    | **Local whisper.cpp** (large-v3-turbo, Metal)   |
-| `NoteGenerator`  | Claude Haiku 4.5 (Sonnet 4.6 optional)          |
+| `NoteGenerator`  | OpenAI GPT-4o-mini (GPT-4o optional), two-pass  |
 | `NotesStore`     | SQLite (+ per-meeting `.txt`/`.md` exports)      |
 | `CalendarSource` | Google Calendar (OAuth PKCE)                    |
 | `TaskExporter`   | Asana (OAuth / token)                           |
@@ -161,7 +164,7 @@ cd glyph
 pnpm install
 
 # 3. add your key for dev (repo-root .env is picked up automatically)
-cp .env.example .env && $EDITOR .env   # set ANTHROPIC_API_KEY
+cp .env.example .env && $EDITOR .env   # set OPENAI_API_KEY
 
 # 4. run in dev (Vite + Tauri; hot reload)
 pnpm tauri dev
@@ -248,7 +251,7 @@ glyph/
 
 - **"Glyph is damaged / can't be opened"** — Gatekeeper on the unsigned app. Run
   `xattr -dr com.apple.quarantine /Applications/Glyph.app`, or right-click → Open.
-- **"Couldn't generate notes" / API errors** — check `ANTHROPIC_API_KEY` in
+- **"Couldn't generate notes" / API errors** — check `OPENAI_API_KEY` in
   `~/Library/Application Support/ai.oltaflock.glyph/.env`, then restart Glyph.
 - **Transcript looks wrong (English for a Hindi meeting, repeated lines)** — set
   the language selector to **हिं** and use **Re-transcribe audio** in the meeting

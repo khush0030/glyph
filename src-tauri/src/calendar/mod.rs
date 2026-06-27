@@ -17,7 +17,10 @@ use crate::keychain;
 
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
-const SCOPE: &str = "https://www.googleapis.com/auth/calendar.readonly";
+// calendar.readonly to list meetings; gmail.send to email finished notes to
+// attendees. Adding a scope means already-connected users must reconnect once.
+const SCOPE: &str =
+    "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send";
 const TOKENS_KEY: &str = "google_tokens";
 
 #[derive(Serialize, Deserialize, Default)]
@@ -38,6 +41,8 @@ pub struct CalendarEvent {
     pub link: Option<String>,
     pub platform: Option<String>,
     pub attendees: Vec<String>,
+    /// Attendee email addresses (excludes self) — recipients for emailed notes.
+    pub attendee_emails: Vec<String>,
     pub auto_record: String,
 }
 
@@ -118,14 +123,15 @@ pub async fn calendar_disconnect() -> Result<(), String> {
     keychain::delete(TOKENS_KEY).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn calendar_upcoming() -> Result<Vec<CalendarEvent>, String> {
+/// Return a currently-valid Google access token, refreshing (and persisting the
+/// new token) if it is expired or about to expire. Shared by Calendar + Gmail.
+pub async fn valid_access_token() -> Result<String, String> {
     let client_id = keychain::get("google_oauth_client_id")
         .map_err(|e| e.to_string())?
         .ok_or("No Google client ID.")?;
     let stored = keychain::get(TOKENS_KEY)
         .map_err(|e| e.to_string())?
-        .ok_or("Google Calendar not connected.")?;
+        .ok_or("Google not connected — connect Google Calendar in Settings.")?;
     let mut tokens: Tokens = serde_json::from_str(&stored).map_err(|e| e.to_string())?;
 
     if tokens.expires_at <= now_secs() + 30 {
@@ -140,19 +146,20 @@ pub async fn calendar_upcoming() -> Result<Vec<CalendarEvent>, String> {
         )
         .map_err(|e| e.to_string())?;
     }
+    Ok(tokens.access_token)
+}
 
-    let time_min = chrono::Utc::now().to_rfc3339();
-    let time_max = (chrono::Utc::now() + chrono::Duration::days(14)).to_rfc3339();
+/// Fetch + parse calendar events in the [time_min, time_max] window.
+async fn fetch_events(time_min: &str, time_max: &str) -> Result<Vec<CalendarEvent>, String> {
+    let token = valid_access_token().await?;
     let url = format!(
         "https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={}&timeMax={}&singleEvents=true&orderBy=startTime&maxResults=50",
-        urlencode(&time_min),
-        urlencode(&time_max),
+        urlencode(time_min),
+        urlencode(time_max),
     );
-
-    let client = reqwest::Client::new();
-    let resp = client
+    let resp = reqwest::Client::new()
         .get(&url)
-        .bearer_auth(&tokens.access_token)
+        .bearer_auth(&token)
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -163,8 +170,44 @@ pub async fn calendar_upcoming() -> Result<Vec<CalendarEvent>, String> {
     }
     let body: Value = resp.json().await.map_err(|e| e.to_string())?;
     let items = body.get("items").and_then(|i| i.as_array()).cloned().unwrap_or_default();
-
     Ok(items.iter().filter_map(parse_event).collect())
+}
+
+#[tauri::command]
+pub async fn calendar_upcoming() -> Result<Vec<CalendarEvent>, String> {
+    let time_min = chrono::Utc::now().to_rfc3339();
+    let time_max = (chrono::Utc::now() + chrono::Duration::days(14)).to_rfc3339();
+    fetch_events(&time_min, &time_max).await
+}
+
+/// Best-effort attendee emails for a finished meeting, matched by title across a
+/// recent + upcoming window. Empty vec (not an error) when nothing matches, so
+/// the email composer still opens. Returns the nearest-matching event's guests.
+#[tauri::command]
+pub async fn calendar_attendees(title: String) -> Result<Vec<String>, String> {
+    let needle = title.trim().to_lowercase();
+    if needle.is_empty() {
+        return Ok(vec![]);
+    }
+    let time_min = (chrono::Utc::now() - chrono::Duration::days(2)).to_rfc3339();
+    let time_max = (chrono::Utc::now() + chrono::Duration::days(14)).to_rfc3339();
+    let events = fetch_events(&time_min, &time_max).await.unwrap_or_default();
+
+    let now = chrono::Utc::now().timestamp_millis();
+    let mut best: Option<(&CalendarEvent, i64)> = None;
+    for e in &events {
+        if e.attendee_emails.is_empty() {
+            continue;
+        }
+        let t = e.title.to_lowercase();
+        if t == needle || t.contains(&needle) || needle.contains(&t) {
+            let dist = (e.start_ts - now).abs();
+            if best.map(|(_, d)| dist < d).unwrap_or(true) {
+                best = Some((e, dist));
+            }
+        }
+    }
+    Ok(best.map(|(e, _)| e.attendee_emails.clone()).unwrap_or_default())
 }
 
 fn parse_event(e: &Value) -> Option<CalendarEvent> {
@@ -178,21 +221,28 @@ fn parse_event(e: &Value) -> Option<CalendarEvent> {
     let end_ts = parse_time(e.get("end")).unwrap_or(start_ts);
 
     let (link, platform) = detect_link(e);
-    let attendees = e
+    let guests: Vec<&Value> = e
         .get("attendees")
         .and_then(|a| a.as_array())
         .map(|arr| {
             arr.iter()
                 .filter(|a| a.get("self").and_then(|s| s.as_bool()) != Some(true))
-                .filter_map(|a| {
-                    a.get("displayName")
-                        .or_else(|| a.get("email"))
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string())
-                })
                 .collect()
         })
         .unwrap_or_default();
+    let attendees = guests
+        .iter()
+        .filter_map(|a| {
+            a.get("displayName")
+                .or_else(|| a.get("email"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        })
+        .collect();
+    let attendee_emails = guests
+        .iter()
+        .filter_map(|a| a.get("email").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
 
     Some(CalendarEvent {
         id,
@@ -202,6 +252,7 @@ fn parse_event(e: &Value) -> Option<CalendarEvent> {
         link,
         platform,
         attendees,
+        attendee_emails,
         auto_record: "ask".into(),
     })
 }

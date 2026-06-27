@@ -9,6 +9,7 @@ mod calendar;
 mod commands;
 mod credentials;
 mod events;
+mod gmail;
 mod keychain;
 mod notes;
 mod stt;
@@ -62,6 +63,8 @@ fn main() {
             calendar::calendar_connect,
             calendar::calendar_disconnect,
             calendar::calendar_upcoming,
+            calendar::calendar_attendees,
+            gmail::gmail_send,
             store::notes_cmds::create_note,
             store::notes_cmds::list_notes,
             store::notes_cmds::get_note,
@@ -75,6 +78,7 @@ fn main() {
             store::notes_cmds::delete_note,
             store::notes_cmds::delete_audio,
             store::notes_cmds::reveal_note_files,
+            store::notes_cmds::save_note_pdf,
             asana::asana_workspaces,
             asana::asana_projects,
             asana::asana_users,

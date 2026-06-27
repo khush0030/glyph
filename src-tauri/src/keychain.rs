@@ -8,7 +8,7 @@
 //!   3. macOS Keychain   (skipped entirely when in env-only mode)
 //!
 //! Account name -> env var name == the account uppercased
-//! (`anthropic_api_key` -> `ANTHROPIC_API_KEY`).
+//! (`openai_api_key` -> `OPENAI_API_KEY`).
 //!
 //! NOTE: a `.env` stores keys as plaintext on disk — weaker than the Keychain.
 //! Keep it out of the repo (it is gitignored). See CLAUDE.md rule #1.
@@ -137,7 +137,7 @@ fn save_sidecar(map: &HashMap<String, String>) -> Result<(), KeychainError> {
     Ok(())
 }
 
-/// Store a secret for `account` (e.g. "anthropic_api_key"). In env-only mode it
+/// Store a secret for `account` (e.g. "openai_api_key"). In env-only mode it
 /// goes to the writable sidecar store; otherwise to the macOS Keychain.
 pub fn set(account: &str, secret: &str) -> Result<(), KeychainError> {
     if env_only_mode() {
@@ -216,15 +216,15 @@ mod tests {
         let content = "\
 # a comment\n\
 \n\
-export ANTHROPIC_API_KEY=plain-value\n\
-ELEVENLABS_API_KEY=\"quoted-value\"\n\
+export OPENAI_API_KEY=plain-value\n\
+GOOGLE_OAUTH_CLIENT_ID=\"quoted-value\"\n\
 ASANA_ACCESS_TOKEN='single-quoted'\n";
         assert_eq!(
-            parse_env(content, "ANTHROPIC_API_KEY").as_deref(),
+            parse_env(content, "OPENAI_API_KEY").as_deref(),
             Some("plain-value")
         );
         assert_eq!(
-            parse_env(content, "ELEVENLABS_API_KEY").as_deref(),
+            parse_env(content, "GOOGLE_OAUTH_CLIENT_ID").as_deref(),
             Some("quoted-value")
         );
         assert_eq!(

@@ -438,6 +438,38 @@ pub fn save_generated(
     Ok(())
 }
 
+/// A filesystem-safe slug from a meeting title (for PDF filenames).
+fn slugify(title: &str) -> String {
+    let s: String = title
+        .trim()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .collect();
+    let s = s.trim_matches('-').replace("--", "-");
+    let s: String = s.chars().take(60).collect();
+    if s.trim_matches('-').is_empty() { "meeting".into() } else { s }
+}
+
+/// Write a PDF (built in the webview, passed as standard base64) into the
+/// meeting folder and open it. Returns the file path.
+#[tauri::command]
+pub fn save_note_pdf(db: State<'_, Db>, note_id: String, pdf_base64: String) -> Result<String, String> {
+    let title: String = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        conn.query_row("SELECT title FROM notes WHERE id = ?1", params![note_id], |r| r.get(0))
+            .unwrap_or_default()
+    };
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(pdf_base64.trim())
+        .map_err(|e| format!("bad PDF data: {e}"))?;
+    let dir = meeting_dir(&note_id).ok_or("no home directory")?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{}-notes.pdf", slugify(&title)));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    let _ = std::process::Command::new("open").arg(&path).spawn();
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// Open the meeting's local-files folder (transcript.txt + notes.md) in Finder.
 #[tauri::command]
 pub fn reveal_note_files(id: String) -> Result<String, String> {
