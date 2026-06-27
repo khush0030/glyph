@@ -350,10 +350,16 @@ async fn fetch_account_events(
         .collect()
 }
 
-/// The calendars to read for an account: selected (shown) ones, plus primary.
+/// The calendars to read for an account: only ones the user OWNS or can WRITE
+/// (their own calendars), plus primary. This deliberately skips subscribed,
+/// read-only calendars — holidays, birthdays, sports schedules (e.g. a FIFA
+/// fixtures feed) — which only clutter the meeting list. Real meeting invites
+/// always land on the user's primary calendar, so none are lost.
 async fn list_calendar_ids(client: &reqwest::Client, token: &str) -> Result<Vec<String>, String> {
+    // minAccessRole=writer makes Google return only owner/writer calendars,
+    // filtering out subscribed read-only feeds server-side.
     let resp = client
-        .get("https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader")
+        .get("https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer")
         .bearer_auth(token)
         .send()
         .await
@@ -365,20 +371,18 @@ async fn list_calendar_ids(client: &reqwest::Client, token: &str) -> Result<Vec<
     let items = body.get("items").and_then(|i| i.as_array()).cloned().unwrap_or_default();
     let mut ids: Vec<String> = items
         .iter()
+        // Belt-and-suspenders: keep only owner/writer (drops any "reader" the
+        // API still returns) and skip calendars hidden in the Google UI.
         .filter(|c| {
-            c.get("primary").and_then(|p| p.as_bool()) == Some(true)
-                || c.get("selected").and_then(|s| s.as_bool()) == Some(true)
+            matches!(
+                c.get("accessRole").and_then(|r| r.as_str()),
+                Some("owner") | Some("writer")
+            ) && c.get("hidden").and_then(|h| h.as_bool()) != Some(true)
         })
         .filter_map(|c| c.get("id").and_then(|i| i.as_str()).map(String::from))
         .collect();
     if ids.is_empty() {
-        // No selected calendars exposed — fall back to all readable ones.
-        ids = items
-            .iter()
-            .filter_map(|c| c.get("id").and_then(|i| i.as_str()).map(String::from))
-            .collect();
-    }
-    if ids.is_empty() {
+        // Nothing matched (or the field was absent) — fall back to primary only.
         ids.push("primary".to_string());
     }
     Ok(ids)
