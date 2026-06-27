@@ -6,49 +6,52 @@
    via rgb(var(--c-x) / <alpha>)). Light = design/mockup.html :root verbatim.
    `.dark` on <html> swaps to the dark palette; toggled by src/lib/useTheme.ts. */
 :root {
-  --c-bg: 250 250 252;
-  --c-surface: 255 255 255;
-  --c-ink: 26 24 35;
-  --c-prose: 59 56 80;
-  --c-muted: 108 105 121;
-  --c-faint: 164 161 178;
-  --c-line: 237 236 242;
-  --c-line-soft: 244 243 248;
-  --c-indigo: 90 75 212;
-  --c-indigo-deep: 70 54 174;
-  --c-indigo-soft: 239 237 252;
+  /* Warm "paper" palette (Granola-like): warm off-white grounds, warm-neutral
+     ink/greys, indigo kept as a restrained brand accent. */
+  --c-bg: 250 249 245;
+  --c-surface: 255 255 253;
+  --c-ink: 38 34 28;
+  --c-prose: 68 63 54;
+  --c-muted: 112 105 95;
+  --c-faint: 161 153 140;
+  --c-line: 235 231 223;
+  --c-line-soft: 244 241 235;
+  --c-indigo: 88 73 198;
+  --c-indigo-deep: 66 51 156;
+  --c-indigo-soft: 240 236 250;
   --c-lime: 198 242 78;
   --c-lime-deep: 63 88 7;
-  --c-rec: 229 72 77;
-  --c-rec-soft: 252 238 238;
-  --c-green: 47 158 107;
-  --c-green-soft: 232 246 239;
-  --c-amber: 199 125 24;
-  --c-amber-soft: 251 241 224;
-  --shadow-card: 0 1px 2px rgba(26, 24, 35, 0.03), 0 4px 16px rgba(26, 24, 35, 0.04);
+  --c-rec: 222 71 73;
+  --c-rec-soft: 250 237 235;
+  --c-green: 53 150 102;
+  --c-green-soft: 233 245 238;
+  --c-amber: 188 124 38;
+  --c-amber-soft: 250 242 227;
+  --shadow-card: 0 1px 2px rgba(40, 34, 28, 0.04), 0 4px 18px rgba(40, 34, 28, 0.05);
 }
 
 .dark {
-  --c-bg: 17 16 23;
-  --c-surface: 31 29 42;
-  --c-ink: 240 239 245;
-  --c-prose: 208 205 220;
-  --c-muted: 173 170 188;
-  --c-faint: 128 125 144;
-  --c-line: 52 49 68;
-  --c-line-soft: 40 38 53;
-  --c-indigo: 141 128 246;
-  --c-indigo-deep: 187 178 250;
-  --c-indigo-soft: 46 40 82;
+  /* Warm charcoal counterpart — neutral greys carry a faint warm cast. */
+  --c-bg: 25 23 20;
+  --c-surface: 35 32 28;
+  --c-ink: 240 237 230;
+  --c-prose: 206 200 189;
+  --c-muted: 169 162 150;
+  --c-faint: 124 117 106;
+  --c-line: 56 52 46;
+  --c-line-soft: 43 40 35;
+  --c-indigo: 150 137 246;
+  --c-indigo-deep: 189 181 250;
+  --c-indigo-soft: 48 42 78;
   --c-lime: 198 242 78;
   --c-lime-deep: 63 88 7;
-  --c-rec: 255 99 104;
-  --c-rec-soft: 62 36 37;
-  --c-green: 76 196 140;
-  --c-green-soft: 24 53 42;
-  --c-amber: 232 170 72;
-  --c-amber-soft: 62 49 27;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.42);
+  --c-rec: 255 105 108;
+  --c-rec-soft: 60 36 35;
+  --c-green: 78 196 140;
+  --c-green-soft: 26 52 41;
+  --c-amber: 232 172 80;
+  --c-amber-soft: 60 48 28;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 22px rgba(0, 0, 0, 0.45);
 }
 
 @layer base {

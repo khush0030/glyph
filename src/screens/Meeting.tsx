@@ -291,7 +291,7 @@ export default function Meeting({
       </div>
 
       {tab === "notes" ? (
-        <div className="grid grid-cols-[1fr_312px] gap-[22px] items-start">
+        <div className="max-w-[820px]">
           <NotesView
             generated={note?.generated ?? null}
             actionItems={note?.actionItems ?? []}
@@ -307,50 +307,13 @@ export default function Meeting({
             onExportPdf={exportPdf}
             onEmail={() => setEmailOpen(true)}
             exporting={exporting}
+            scratch={scratch}
+            onScratch={onScratch}
+            onRevealFiles={() => commands.revealNoteFiles(noteId).catch(() => {})}
+            onRetranscribe={retranscribe}
+            canRetranscribe={!!note?.audioPath}
+            retranscribing={retx}
           />
-          <aside>
-            <div className="bg-surface border border-line rounded-r shadow-card px-[18px] py-4 mb-[18px]">
-              <div className="text-[11px] font-bold tracking-[0.6px] uppercase text-faint mb-[9px]">Your notes</div>
-              <textarea
-                value={scratch}
-                onChange={(e) => onScratch(e.target.value)}
-                placeholder="Jot anything — it gets folded into the clean notes."
-                className="w-full min-h-[120px] border border-line rounded-[12px] px-[14px] py-3 font-sans text-[14px] leading-[1.55] text-ink resize-none outline-none bg-bg focus:border-indigo focus:bg-surface"
-              />
-            </div>
-            <div className="bg-surface border border-line rounded-r shadow-card p-[18px]">
-              <div className="text-[13px] font-bold mb-[3px]">Linked Asana project</div>
-              <div className="text-[12.5px] text-muted leading-[1.5] mb-[13px]">
-                Connect Asana in Settings to route action items.
-              </div>
-              {[
-                ["Engine", "Local · Whisper"],
-                ["Saved", "On this Mac"],
-              ].map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between text-[13px] py-[9px] border-b border-line-soft last:border-b-0">
-                  <span className="text-muted">{k}</span>
-                  <span className="font-semibold">{v}</span>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => commands.revealNoteFiles(noteId).catch(() => {})}
-                className="mt-[11px] w-full text-[12.5px] font-semibold text-indigo hover:text-indigo-deep text-left"
-              >
-                Show local files (transcript + notes) →
-              </button>
-              {note?.audioPath && (
-                <button
-                  type="button"
-                  onClick={retranscribe}
-                  disabled={isBusy}
-                  className="mt-[8px] w-full text-[12.5px] font-semibold text-muted hover:text-ink text-left disabled:opacity-40"
-                >
-                  {retx ? "Re-transcribing…" : "Re-transcribe audio (uses language above) ↻"}
-                </button>
-              )}
-            </div>
-          </aside>
         </div>
       ) : (
         <Transcript segments={displaySegments} partial="" recording={isRecording} />
