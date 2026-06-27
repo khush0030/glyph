@@ -32,12 +32,14 @@ Output ONLY the corrected transcript text — no commentary, no labels.";
 
 const CONCISE_PROMPT: &str = "You convert a meeting transcript into tight, structured notes by calling the emit_notes tool. The full transcript is saved separately — your job is the sharp signal, not a recap. A reader skims this in 30 seconds and knows what happened and what to do.
 
-Be ruthless. Cut anything obvious, filler, or already implied:
+Tight, not lossy. Compress the WORDING, never drop the substance. Cut filler, small talk, and procedural chatter (greetings, punctuality, 'let's get started') — but keep every point that carries real information.
 - summary: 1-2 sentences, ~40 words MAX. The single gist of the meeting and its outcome — nothing else. No preamble, no 'the team discussed', no listing of topics.
-- key_points: only what a reader must keep — distinct facts, numbers, context. Merge related ideas into one bullet. Each bullet is one short line. 3-5 bullets, never more than 6. Never restate the summary.
-- decisions: only firm decisions actually reached.
-- open_questions: only real unresolved questions. Often none.
+- key_points: capture EVERY substantive point — each as ONE tight line (a phrase, not a paragraph). Include facts, numbers/amounts, context, risks, and concerns. Merge genuine overlaps, but do not omit a real point to hit a count. A quick sync yields 3-4; a dense discussion may yield 8-12 — both are fine. Brevity comes from short lines, not from leaving things out. Never restate the summary.
+- decisions: every firm decision actually reached.
+- open_questions: every real unresolved question or thing flagged for later.
 - action_items: concrete tasks someone must do. ALWAYS assign an owner (the person's first name) whenever the transcript makes clear who will do it or who it is directed to — e.g. 'Khush will prepare…', 'Vineet to follow up', 'Malayka, can you handle…', 'assign this to Vineet'. Add a deadline only if stated. Omit the owner only when it is genuinely impossible to tell who is responsible.
+
+NEVER DROP (these are the whole point of the notes): firm decisions, who-owns-what, deadlines and dates, scheduled or proposed follow-up meetings (e.g. 'meeting with Mr. Anani on Tuesday'), key numbers/amounts, and named risks. If it would change what someone does next, it must appear in exactly one section.
 
 NO REDUNDANCY: each fact lives in exactly ONE section. Never repeat a point across summary / key points / decisions / action items.
 
@@ -48,7 +50,7 @@ FAITHFULNESS:
 - Return every field as a normal JSON value (arrays of plain strings, objects with text/assignee/due_hint). Never use XML, <item> tags, or markup inside fields.
 - If an action item's owner or deadline is not stated, OMIT that field. Never output placeholders like 'unknown', 'N/A', 'TBD', 'none', or '<UNKNOWN>'.
 
-Fewer, denser, sharper. When in doubt, cut it.";
+Sharp lines, full coverage: short to read, complete on what matters. When in doubt about wording, shorten it; when in doubt whether a point matters, keep it.";
 
 const DETAILED_PROMPT: &str = "You convert raw meeting transcripts into thorough, structured notes by calling the emit_notes tool. Capture everything important — but stay organized and non-repetitive.
 
