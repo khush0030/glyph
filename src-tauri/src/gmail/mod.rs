@@ -108,15 +108,22 @@ pub async fn gmail_send(
         .and_then(|e| e.get("message"))
         .and_then(|m| m.as_str())
         .unwrap_or("unknown error");
-    // The most common failure: the stored token predates the gmail.send scope.
-    if msg.contains("insufficient")
-        || msg.to_lowercase().contains("scope")
-        || status.as_u16() == 403
-    {
+    let low = msg.to_lowercase();
+    // Token predates the gmail.send scope → reconnecting fixes it.
+    if low.contains("insufficient") || low.contains("scope") {
         return Err(
-            "Gmail permission missing. Reconnect Google Calendar in Settings to grant email access, then try again."
+            "Gmail permission missing for this account. Reconnect it in Settings → Google accounts to grant email access, then try again."
                 .into(),
         );
+    }
+    // Gmail API not turned on for the OAuth client's Google Cloud project.
+    if low.contains("has not been used")
+        || low.contains("accessnotconfigured")
+        || low.contains("is disabled")
+    {
+        return Err(format!(
+            "Gmail API isn't enabled for your Google Cloud project. Enable it (APIs & Services → Library → Gmail API → Enable), wait a minute, then try again. [{msg}]"
+        ));
     }
     Err(format!("Gmail API {status}: {msg}"))
 }

@@ -25,6 +25,7 @@ export function useRecording(): RecordingState {
   const [error, setError] = useState<string | null>(null);
   const unlistenLevel = useRef<(() => void) | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedAt = useRef<number>(0);
 
   const cleanup = useCallback(() => {
     unlistenLevel.current?.();
@@ -43,8 +44,15 @@ export function useRecording(): RecordingState {
       unlistenLevel.current = un;
       await commands.startRecording("manual");
       setRecording(true);
+      startedAt.current = Date.now();
       setElapsed(0);
-      timer.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+      // Derive elapsed from the start timestamp, not an accumulator: WebKit
+      // throttles setInterval when the window is backgrounded during a call, so
+      // a "+1 each tick" counter would undercount a long meeting badly.
+      timer.current = setInterval(
+        () => setElapsed(Math.floor((Date.now() - startedAt.current) / 1000)),
+        1000
+      );
     } catch (e) {
       cleanup();
       setError(String(e));

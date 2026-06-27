@@ -509,7 +509,30 @@ pub fn delete_action_item(db: State<'_, Db>, id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Record audio/duration/status after a recording stops.
+/// True recording length from a 16 kHz mono 16-bit WAV: data bytes / byte-rate.
+/// This is ground truth — unlike the frontend's wall-clock tick counter, which
+/// WebKit throttles when Glyph is backgrounded during a call (a long meeting
+/// would otherwise report roughly half its real length).
+fn wav_duration_secs(path: &str) -> Option<i64> {
+    use std::io::Read;
+    let mut f = std::fs::File::open(path).ok()?;
+    let mut header = [0u8; 44];
+    f.read_exact(&mut header).ok()?;
+    // byte_rate is bytes 28..32 of a canonical WAV header.
+    let byte_rate = u32::from_le_bytes([header[28], header[29], header[30], header[31]]);
+    if byte_rate == 0 {
+        return None;
+    }
+    let total = std::fs::metadata(path).ok()?.len();
+    if total <= 44 {
+        return Some(0);
+    }
+    Some(((total - 44) / u64::from(byte_rate)) as i64)
+}
+
+/// Record audio/duration/status after a recording stops. The duration is taken
+/// from the saved WAV when available (accurate), falling back to the value the
+/// frontend timed.
 #[tauri::command]
 pub fn set_recording_result(
     db: State<'_, Db>,
@@ -517,12 +540,17 @@ pub fn set_recording_result(
     audio_path: Option<String>,
     duration_sec: i64,
 ) -> Result<(), String> {
+    let duration = audio_path
+        .as_deref()
+        .and_then(wav_duration_secs)
+        .filter(|d| *d > 0)
+        .unwrap_or(duration_sec);
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO notes (id, title, created_at, updated_at, source, status, audio_path, duration_sec)
          VALUES (?1, '', ?4, ?4, 'recorded', 'draft', ?2, ?3)
          ON CONFLICT(id) DO UPDATE SET audio_path = ?2, duration_sec = ?3, updated_at = ?4",
-        params![id, audio_path, duration_sec, now_ms()],
+        params![id, audio_path, duration, now_ms()],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
