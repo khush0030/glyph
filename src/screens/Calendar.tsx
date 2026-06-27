@@ -26,10 +26,19 @@ export default function Calendar({
         right={
           cal.connected ? (
             <div className="flex items-center gap-2">
-              <ConnPill>Google Calendar</ConnPill>
-              <Btn sm onClick={cal.disconnect}>
-                Disconnect
+              <ConnPill>
+                {cal.accounts.length} Google account{cal.accounts.length === 1 ? "" : "s"}
+              </ConnPill>
+              <Btn sm onClick={() => cal.connect()}>
+                {cal.loading ? "Waiting…" : "Add account"}
               </Btn>
+              <button
+                type="button"
+                onClick={() => onNavigate("settings")}
+                className="text-[12px] text-faint hover:text-muted"
+              >
+                Manage
+              </button>
             </div>
           ) : undefined
         }

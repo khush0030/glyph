@@ -6,6 +6,7 @@ import { CalendarIcon, AsanaIcon } from "../components/Icons";
 import { commands } from "../lib/ipc";
 import { useSettings } from "../lib/useSettings";
 import { useCredentials } from "../lib/useCredentials";
+import { useCalendar } from "../lib/useCalendar";
 import { useTheme } from "../lib/useTheme";
 
 // One settings row (.srow): title + description left, control right.
@@ -41,6 +42,7 @@ const idx = (arr: string[], v: string) => Math.max(0, arr.indexOf(v));
 export default function Settings() {
   const { values, set } = useSettings();
   const creds = useCredentials();
+  const cal = useCalendar();
   const { theme, setTheme } = useTheme();
 
   return (
@@ -113,15 +115,41 @@ export default function Settings() {
       <Card>
         <SRow
           icon={<CalendarIcon className="w-[18px] h-[18px]" />}
-          title="Google Calendar"
-          desc="Pulls upcoming meetings and detects video links to trigger recording."
+          title="Google accounts"
+          desc="Connect one or more Google accounts. Glyph aggregates upcoming meetings from all of them, detects video links, and emails notes via Gmail."
           control={
-            creds.isSet("google_oauth_client_id") ? (
-              <ConnPill>Connected</ConnPill>
-            ) : (
+            !creds.isSet("google_oauth_client_id") ? (
               <span className="text-[12.5px] font-semibold text-faint">
                 Add client ID above
               </span>
+            ) : (
+              <div className="flex flex-col items-end gap-[6px] min-w-[220px]">
+                {cal.accounts.map((email) => (
+                  <span
+                    key={email}
+                    className="inline-flex items-center gap-[8px] text-[12.5px] font-medium bg-green-soft text-green rounded-[20px] pl-[11px] pr-[7px] py-[3px]"
+                  >
+                    <span className="w-[6px] h-[6px] rounded-full bg-green" />
+                    {email}
+                    <button
+                      type="button"
+                      onClick={() => cal.disconnect(email)}
+                      className="text-green/70 hover:text-green text-[14px] leading-none"
+                      aria-label={`Disconnect ${email}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => cal.connect()}
+                  disabled={cal.loading}
+                  className="text-[12.5px] font-semibold border border-line rounded-[9px] px-[11px] py-[7px] hover:border-faint disabled:opacity-40"
+                >
+                  {cal.loading ? "Waiting for Google…" : cal.accounts.length ? "Connect another account" : "Connect account"}
+                </button>
+              </div>
             )
           }
         />

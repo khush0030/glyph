@@ -1,6 +1,9 @@
 //! CalendarSource — Google Calendar via OAuth 2.0 for desktop apps: PKCE +
 //! loopback redirect, system browser, tokens in the Keychain (SPEC §8). No
-//! client secret in the app. Lists upcoming events and detects video links.
+//! client secret in the app. Supports MULTIPLE connected Google accounts: each
+//! account's tokens are stored in a list, and `calendar_upcoming` aggregates
+//! events across every account and every calendar each account holds. Also
+//! detects video links and exposes attendee emails for emailing notes.
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -17,17 +20,30 @@ use crate::keychain;
 
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
-// calendar.readonly to list meetings; gmail.send to email finished notes to
-// attendees. Adding a scope means already-connected users must reconnect once.
-const SCOPE: &str =
-    "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send";
-const TOKENS_KEY: &str = "google_tokens";
+const USERINFO_ENDPOINT: &str = "https://www.googleapis.com/oauth2/v3/userinfo";
+// openid+email identifies which account this is (for the picker + Gmail "from");
+// calendar.readonly to list meetings; gmail.send to email finished notes.
+const SCOPE: &str = "openid email https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send";
+/// Keychain key holding the JSON array of connected accounts.
+const ACCOUNTS_KEY: &str = "google_accounts";
+/// Legacy single-account key (pre multi-account). Cleaned up on first connect.
+const LEGACY_TOKENS_KEY: &str = "google_tokens";
 
-#[derive(Serialize, Deserialize, Default)]
-struct Tokens {
+/// One connected Google account and its OAuth tokens.
+#[derive(Serialize, Deserialize, Default, Clone)]
+struct Account {
+    email: String,
     refresh_token: String,
     access_token: String,
     /// Unix seconds when access_token expires.
+    expires_at: u64,
+}
+
+/// Just the token triple from a code/refresh exchange.
+#[derive(Default)]
+struct Tokens {
+    refresh_token: String,
+    access_token: String,
     expires_at: u64,
 }
 
@@ -43,6 +59,8 @@ pub struct CalendarEvent {
     pub attendees: Vec<String>,
     /// Attendee email addresses (excludes self) — recipients for emailed notes.
     pub attendee_emails: Vec<String>,
+    /// Which connected Google account this event came from (email).
+    pub account: String,
     pub auto_record: String,
 }
 
@@ -63,10 +81,67 @@ fn random_b64(len: usize) -> Result<String, String> {
     Ok(b64url(&buf))
 }
 
+// ---- Account store ----------------------------------------------------------
+
+fn load_accounts() -> Vec<Account> {
+    keychain::get(ACCOUNTS_KEY)
+        .ok()
+        .flatten()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_accounts(accts: &[Account]) -> Result<(), String> {
+    keychain::set(
+        ACCOUNTS_KEY,
+        &serde_json::to_string(accts).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Connected account emails, in connection order.
+#[tauri::command]
+pub fn calendar_accounts() -> Vec<String> {
+    load_accounts().into_iter().map(|a| a.email).collect()
+}
+
 #[tauri::command]
 pub fn calendar_connected() -> bool {
-    matches!(keychain::get(TOKENS_KEY), Ok(Some(_)))
+    !load_accounts().is_empty()
 }
+
+/// Return a currently-valid access token for `email`, refreshing (and persisting
+/// the new token) if needed. Shared by Calendar fetches + Gmail send.
+pub async fn account_token(email: &str) -> Result<String, String> {
+    let client_id = keychain::get("google_oauth_client_id")
+        .map_err(|e| e.to_string())?
+        .ok_or("No Google client ID.")?;
+    let client_secret = keychain::get("google_oauth_client_secret")
+        .ok()
+        .flatten()
+        .filter(|s| !s.is_empty());
+
+    let mut accts = load_accounts();
+    let idx = accts
+        .iter()
+        .position(|a| a.email == email)
+        .ok_or("That Google account is not connected.")?;
+
+    if accts[idx].expires_at <= now_secs() + 30 {
+        let t = refresh_access(&client_id, client_secret.as_deref(), &accts[idx].refresh_token).await?;
+        accts[idx].access_token = t.access_token;
+        accts[idx].expires_at = t.expires_at;
+        save_accounts(&accts)?;
+    }
+    Ok(accts[idx].access_token.clone())
+}
+
+/// Email of the first connected account (Gmail "from" default).
+pub fn first_account_email() -> Option<String> {
+    load_accounts().into_iter().next().map(|a| a.email)
+}
+
+// ---- OAuth connect ----------------------------------------------------------
 
 #[tauri::command]
 pub async fn calendar_connect(app: AppHandle) -> Result<(), String> {
@@ -97,92 +172,83 @@ pub async fn calendar_connect(app: AppHandle) -> Result<(), String> {
         .open_url(auth_url, None::<&str>)
         .map_err(|e| format!("could not open browser: {e}"))?;
 
-    // Wait (off the async runtime) for Google to hit the loopback redirect.
     let expected_state = state.clone();
     let code = tauri::async_runtime::spawn_blocking(move || wait_for_code(listener, &expected_state))
         .await
         .map_err(|e| e.to_string())??;
 
-    // Some Google "Desktop app" clients require the client secret in the token
-    // exchange even with PKCE; include it when the user has stored one.
     let client_secret = keychain::get("google_oauth_client_secret")
         .ok()
         .flatten()
         .filter(|s| !s.is_empty());
     let tokens = exchange_code(&client_id, client_secret.as_deref(), &code, &verifier, &redirect).await?;
-    keychain::set(
-        TOKENS_KEY,
-        &serde_json::to_string(&tokens).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
+
+    let email = fetch_email(&tokens.access_token).await?;
+    if email.is_empty() {
+        return Err("Couldn't read the Google account email — please try connecting again.".into());
+    }
+
+    // Upsert: re-connecting the same account refreshes its tokens.
+    let mut accts = load_accounts();
+    if let Some(a) = accts.iter_mut().find(|a| a.email == email) {
+        if !tokens.refresh_token.is_empty() {
+            a.refresh_token = tokens.refresh_token;
+        }
+        a.access_token = tokens.access_token;
+        a.expires_at = tokens.expires_at;
+    } else {
+        accts.push(Account {
+            email,
+            refresh_token: tokens.refresh_token,
+            access_token: tokens.access_token,
+            expires_at: tokens.expires_at,
+        });
+    }
+    save_accounts(&accts)?;
+    let _ = keychain::delete(LEGACY_TOKENS_KEY); // drop pre-multi-account token
     Ok(())
 }
 
+/// Disconnect one account by email, or all accounts when `email` is None.
 #[tauri::command]
-pub async fn calendar_disconnect() -> Result<(), String> {
-    keychain::delete(TOKENS_KEY).map_err(|e| e.to_string())
-}
-
-/// Return a currently-valid Google access token, refreshing (and persisting the
-/// new token) if it is expired or about to expire. Shared by Calendar + Gmail.
-pub async fn valid_access_token() -> Result<String, String> {
-    let client_id = keychain::get("google_oauth_client_id")
-        .map_err(|e| e.to_string())?
-        .ok_or("No Google client ID.")?;
-    let stored = keychain::get(TOKENS_KEY)
-        .map_err(|e| e.to_string())?
-        .ok_or("Google not connected — connect Google Calendar in Settings.")?;
-    let mut tokens: Tokens = serde_json::from_str(&stored).map_err(|e| e.to_string())?;
-
-    if tokens.expires_at <= now_secs() + 30 {
-        let client_secret = keychain::get("google_oauth_client_secret")
-            .ok()
-            .flatten()
-            .filter(|s| !s.is_empty());
-        refresh(&client_id, client_secret.as_deref(), &mut tokens).await?;
-        keychain::set(
-            TOKENS_KEY,
-            &serde_json::to_string(&tokens).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?;
+pub async fn calendar_disconnect(email: Option<String>) -> Result<(), String> {
+    match email {
+        Some(e) => {
+            let mut accts = load_accounts();
+            accts.retain(|a| a.email != e);
+            save_accounts(&accts)
+        }
+        None => keychain::delete(ACCOUNTS_KEY).map_err(|e| e.to_string()),
     }
-    Ok(tokens.access_token)
 }
 
-/// Fetch + parse calendar events in the [time_min, time_max] window.
-async fn fetch_events(time_min: &str, time_max: &str) -> Result<Vec<CalendarEvent>, String> {
-    let token = valid_access_token().await?;
-    let url = format!(
-        "https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={}&timeMax={}&singleEvents=true&orderBy=startTime&maxResults=50",
-        urlencode(time_min),
-        urlencode(time_max),
-    );
+/// Fetch the account's email address from the userinfo endpoint.
+async fn fetch_email(access_token: &str) -> Result<String, String> {
     let resp = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(&token)
+        .get(USERINFO_ENDPOINT)
+        .bearer_auth(access_token)
         .send()
         .await
         .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
-        let s = resp.status();
-        let b = resp.text().await.unwrap_or_default();
-        return Err(format!("Calendar API {s}: {}", b.chars().take(200).collect::<String>()));
+        return Ok(String::new());
     }
-    let body: Value = resp.json().await.map_err(|e| e.to_string())?;
-    let items = body.get("items").and_then(|i| i.as_array()).cloned().unwrap_or_default();
-    Ok(items.iter().filter_map(parse_event).collect())
+    let v: Value = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(v.get("email").and_then(|e| e.as_str()).unwrap_or("").to_string())
 }
+
+// ---- Event fetching ---------------------------------------------------------
 
 #[tauri::command]
 pub async fn calendar_upcoming() -> Result<Vec<CalendarEvent>, String> {
     let time_min = chrono::Utc::now().to_rfc3339();
     let time_max = (chrono::Utc::now() + chrono::Duration::days(14)).to_rfc3339();
-    fetch_events(&time_min, &time_max).await
+    aggregate_events(&time_min, &time_max).await
 }
 
 /// Best-effort attendee emails for a finished meeting, matched by title across a
-/// recent + upcoming window. Empty vec (not an error) when nothing matches, so
-/// the email composer still opens. Returns the nearest-matching event's guests.
+/// recent + upcoming window over ALL accounts. Empty vec (not an error) when
+/// nothing matches, so the email composer still opens.
 #[tauri::command]
 pub async fn calendar_attendees(title: String) -> Result<Vec<String>, String> {
     let needle = title.trim().to_lowercase();
@@ -191,7 +257,7 @@ pub async fn calendar_attendees(title: String) -> Result<Vec<String>, String> {
     }
     let time_min = (chrono::Utc::now() - chrono::Duration::days(2)).to_rfc3339();
     let time_max = (chrono::Utc::now() + chrono::Duration::days(14)).to_rfc3339();
-    let events = fetch_events(&time_min, &time_max).await.unwrap_or_default();
+    let events = aggregate_events(&time_min, &time_max).await.unwrap_or_default();
 
     let now = chrono::Utc::now().timestamp_millis();
     let mut best: Option<(&CalendarEvent, i64)> = None;
@@ -208,6 +274,141 @@ pub async fn calendar_attendees(title: String) -> Result<Vec<String>, String> {
         }
     }
     Ok(best.map(|(e, _)| e.attendee_emails.clone()).unwrap_or_default())
+}
+
+/// Aggregate events across every connected account and all of its calendars,
+/// de-duplicated (same title + start across accounts) and sorted by start time.
+async fn aggregate_events(time_min: &str, time_max: &str) -> Result<Vec<CalendarEvent>, String> {
+    let accounts = load_accounts();
+    if accounts.is_empty() {
+        return Err("Google not connected — connect a Google account in Settings.".into());
+    }
+
+    let mut all: Vec<CalendarEvent> = Vec::new();
+    let mut last_err: Option<String> = None;
+    for acct in &accounts {
+        // Refresh sequentially (persists to Keychain) before the concurrent fetch.
+        match account_token(&acct.email).await {
+            Ok(token) => {
+                let evs = fetch_account_events(&acct.email, &token, time_min, time_max).await;
+                all.extend(evs);
+            }
+            Err(e) => last_err = Some(e),
+        }
+    }
+
+    // If every account failed, surface the error instead of an empty list.
+    if all.is_empty() {
+        if let Some(e) = last_err {
+            return Err(e);
+        }
+    }
+
+    all.sort_by_key(|e| e.start_ts);
+    // De-dup the same meeting showing up on multiple calendars/accounts.
+    let mut seen = std::collections::HashSet::new();
+    all.retain(|e| seen.insert((e.title.clone(), e.start_ts)));
+    Ok(all)
+}
+
+/// Fetch events from all of one account's calendars, concurrently.
+async fn fetch_account_events(
+    email: &str,
+    token: &str,
+    time_min: &str,
+    time_max: &str,
+) -> Vec<CalendarEvent> {
+    let client = reqwest::Client::new();
+    let cal_ids = list_calendar_ids(&client, token)
+        .await
+        .unwrap_or_else(|_| vec!["primary".to_string()]);
+
+    let futs = cal_ids.into_iter().map(|cid| {
+        let client = client.clone();
+        let token = token.to_string();
+        let tmin = time_min.to_string();
+        let tmax = time_max.to_string();
+        let email = email.to_string();
+        async move {
+            fetch_calendar_events(&client, &token, &cid, &tmin, &tmax)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|mut e| {
+                    e.account = email.clone();
+                    // Make ids unique across accounts/calendars (React keys).
+                    e.id = format!("{email}:{}", e.id);
+                    e
+                })
+                .collect::<Vec<_>>()
+        }
+    });
+    futures_util::future::join_all(futs)
+        .await
+        .into_iter()
+        .flatten()
+        .collect()
+}
+
+/// The calendars to read for an account: selected (shown) ones, plus primary.
+async fn list_calendar_ids(client: &reqwest::Client, token: &str) -> Result<Vec<String>, String> {
+    let resp = client
+        .get("https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader")
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("calendarList {}", resp.status()));
+    }
+    let body: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let items = body.get("items").and_then(|i| i.as_array()).cloned().unwrap_or_default();
+    let mut ids: Vec<String> = items
+        .iter()
+        .filter(|c| {
+            c.get("primary").and_then(|p| p.as_bool()) == Some(true)
+                || c.get("selected").and_then(|s| s.as_bool()) == Some(true)
+        })
+        .filter_map(|c| c.get("id").and_then(|i| i.as_str()).map(String::from))
+        .collect();
+    if ids.is_empty() {
+        // No selected calendars exposed — fall back to all readable ones.
+        ids = items
+            .iter()
+            .filter_map(|c| c.get("id").and_then(|i| i.as_str()).map(String::from))
+            .collect();
+    }
+    if ids.is_empty() {
+        ids.push("primary".to_string());
+    }
+    Ok(ids)
+}
+
+async fn fetch_calendar_events(
+    client: &reqwest::Client,
+    token: &str,
+    calendar_id: &str,
+    time_min: &str,
+    time_max: &str,
+) -> Result<Vec<CalendarEvent>, String> {
+    let url = format!(
+        "https://www.googleapis.com/calendar/v3/calendars/{}/events?timeMin={}&timeMax={}&singleEvents=true&orderBy=startTime&maxResults=50",
+        urlencode(calendar_id),
+        urlencode(time_min),
+        urlencode(time_max),
+    );
+    let resp = client
+        .get(&url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("events {}", resp.status()));
+    }
+    let body: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let items = body.get("items").and_then(|i| i.as_array()).cloned().unwrap_or_default();
+    Ok(items.iter().filter_map(parse_event).collect())
 }
 
 fn parse_event(e: &Value) -> Option<CalendarEvent> {
@@ -253,6 +454,7 @@ fn parse_event(e: &Value) -> Option<CalendarEvent> {
         platform,
         attendees,
         attendee_emails,
+        account: String::new(),
         auto_record: "ask".into(),
     })
 }
@@ -355,17 +557,17 @@ async fn exchange_code(
     })
 }
 
-async fn refresh(
+async fn refresh_access(
     client_id: &str,
     client_secret: Option<&str>,
-    tokens: &mut Tokens,
-) -> Result<(), String> {
-    if tokens.refresh_token.is_empty() {
-        return Err("no refresh token — reconnect Google Calendar.".into());
+    refresh_token: &str,
+) -> Result<Tokens, String> {
+    if refresh_token.is_empty() {
+        return Err("no refresh token — reconnect this Google account.".into());
     }
     let mut params = vec![
         ("client_id", client_id),
-        ("refresh_token", tokens.refresh_token.as_str()),
+        ("refresh_token", refresh_token),
         ("grant_type", "refresh_token"),
     ];
     if let Some(secret) = client_secret {
@@ -382,9 +584,11 @@ async fn refresh(
     if !ok {
         return Err(format!("token refresh failed: {v}"));
     }
-    tokens.access_token = v.get("access_token").and_then(|t| t.as_str()).unwrap_or("").to_string();
-    tokens.expires_at = now_secs() + v.get("expires_in").and_then(|e| e.as_u64()).unwrap_or(3600);
-    Ok(())
+    Ok(Tokens {
+        refresh_token: refresh_token.to_string(),
+        access_token: v.get("access_token").and_then(|t| t.as_str()).unwrap_or("").to_string(),
+        expires_at: now_secs() + v.get("expires_in").and_then(|e| e.as_u64()).unwrap_or(3600),
+    })
 }
 
 /// Block on the loopback listener until Google redirects with `?code=`.
@@ -413,7 +617,7 @@ fn wait_for_code(listener: TcpListener, expected_state: &str) -> Result<String, 
             }
         }
         if code.is_some() || got_state.is_some() {
-            respond(&mut stream, "Glyph is connected to Google Calendar. You can close this tab.");
+            respond(&mut stream, "Glyph is connected to Google. You can close this tab.");
             if got_state.as_deref() != Some(expected_state) {
                 return Err("state mismatch (possible CSRF) — try again.".into());
             }

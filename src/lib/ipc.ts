@@ -65,10 +65,13 @@ export const commands = {
   ) =>
     invoke<number>("asana_create_tasks", { noteId, projectGid, workspace, items }),
 
-  // Calendar — Google Calendar via OAuth (PKCE).
+  // Calendar — one or more Google accounts via OAuth (PKCE).
   calendarConnected: () => invoke<boolean>("calendar_connected"),
   calendarConnect: () => invoke<void>("calendar_connect"),
-  calendarDisconnect: () => invoke<void>("calendar_disconnect"),
+  // Omit email to disconnect every account; pass one to remove just that account.
+  calendarDisconnect: (email?: string) =>
+    invoke<void>("calendar_disconnect", { email }),
+  calendarAccounts: () => invoke<string[]>("calendar_accounts"),
   calendarUpcoming: () => invoke<CalendarEvent[]>("calendar_upcoming"),
   // Best-effort attendee emails for a finished meeting, matched by title across
   // recent + upcoming calendar events. Empty if not connected or no match.
@@ -79,12 +82,13 @@ export const commands = {
   saveNotePdf: (noteId: string, pdfBase64: string) =>
     invoke<string>("save_note_pdf", { noteId, pdfBase64 }),
   gmailSend: (
+    from: string,
     to: string[],
     subject: string,
     body: string,
     pdfBase64: string,
     filename: string
-  ) => invoke<void>("gmail_send", { to, subject, body, pdfBase64, filename }),
+  ) => invoke<void>("gmail_send", { from, to, subject, body, pdfBase64, filename }),
 
   // Notes — fold transcript + scratch into structured notes via OpenAI.
   generateNotes: (
@@ -112,6 +116,7 @@ export interface CalendarEvent {
   platform: string | null;
   attendees: string[];
   attendeeEmails: string[];
+  account: string;
   autoRecord: string;
 }
 

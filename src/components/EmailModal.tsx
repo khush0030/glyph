@@ -14,6 +14,8 @@ export default function EmailModal({
   onClose: () => void;
 }) {
   const title = note.title.trim() || "Untitled meeting";
+  const [accounts, setAccounts] = useState<string[]>([]);
+  const [from, setFrom] = useState("");
   const [recipients, setRecipients] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [subject, setSubject] = useState(`Notes — ${title}`);
@@ -26,6 +28,22 @@ export default function EmailModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  // Connected accounts for the "From" picker.
+  useEffect(() => {
+    let live = true;
+    commands
+      .calendarAccounts()
+      .then((accts) => {
+        if (!live) return;
+        setAccounts(accts);
+        setFrom((f) => f || accts[0] || "");
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // Best-effort prefill from the calendar (past/upcoming title match).
   useEffect(() => {
@@ -68,7 +86,7 @@ export default function EmailModal({
     try {
       const pdf = buildNotePdfBase64(note);
       const filename = `${slug(title)}-notes.pdf`;
-      await commands.gmailSend(to, subject, body, pdf, filename);
+      await commands.gmailSend(from, to, subject, body, pdf, filename);
       setDone(true);
       setTimeout(onClose, 1100);
     } catch (e) {
@@ -97,6 +115,26 @@ export default function EmailModal({
         </div>
 
         <div className="px-[22px] py-[18px]">
+          {accounts.length > 1 && (
+            <>
+              <div className="text-[11.5px] font-bold tracking-[0.5px] uppercase text-faint mb-[7px]">
+                From
+              </div>
+              <select
+                aria-label="Send from account"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="w-full border border-line rounded-[11px] px-[13px] py-[10px] text-[13.5px] font-semibold bg-bg outline-none focus:border-indigo mb-[14px]"
+              >
+                {accounts.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
           <div className="text-[11.5px] font-bold tracking-[0.5px] uppercase text-faint mb-[7px]">
             Recipients
           </div>
@@ -139,6 +177,7 @@ export default function EmailModal({
             Subject
           </div>
           <input
+            aria-label="Email subject"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             className="w-full border border-line rounded-[11px] px-[13px] py-[10px] text-[13.5px] bg-bg outline-none focus:border-indigo mb-[14px]"
@@ -148,6 +187,7 @@ export default function EmailModal({
             Message
           </div>
           <textarea
+            aria-label="Email message"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             className="w-full min-h-[120px] border border-line rounded-[11px] px-[13px] py-[10px] text-[13.5px] leading-[1.5] bg-bg outline-none focus:border-indigo resize-none"

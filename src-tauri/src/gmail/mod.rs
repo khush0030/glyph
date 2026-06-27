@@ -32,9 +32,12 @@ fn encode_subject(s: &str) -> String {
 }
 
 /// Send `pdf_base64` (standard base64 of the PDF bytes) as an attachment to
-/// `to`, with a plain-text `body`. `filename` is the attachment name.
+/// `to`, with a plain-text `body`, from the connected Google account `from`
+/// (falls back to the first connected account). `filename` is the attachment
+/// name.
 #[tauri::command]
 pub async fn gmail_send(
+    from: String,
     to: Vec<String>,
     subject: String,
     body: String,
@@ -50,7 +53,13 @@ pub async fn gmail_send(
         return Err("No recipients — add at least one email address.".into());
     }
 
-    let token = crate::calendar::valid_access_token().await?;
+    let sender = if from.trim().is_empty() {
+        crate::calendar::first_account_email()
+            .ok_or("No Google account connected — connect one in Settings.")?
+    } else {
+        from.trim().to_string()
+    };
+    let token = crate::calendar::account_token(&sender).await?;
 
     let safe_name = filename.replace(['"', '\r', '\n'], "");
     let mime = format!(

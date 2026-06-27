@@ -64,6 +64,7 @@ fn main() {
             calendar::calendar_disconnect,
             calendar::calendar_upcoming,
             calendar::calendar_attendees,
+            calendar::calendar_accounts,
             gmail::gmail_send,
             store::notes_cmds::create_note,
             store::notes_cmds::list_notes,

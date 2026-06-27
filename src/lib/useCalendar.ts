@@ -3,17 +3,19 @@ import { commands, type CalendarEvent } from "./ipc";
 
 export interface CalendarState {
   connected: boolean;
+  accounts: string[];
   events: CalendarEvent[];
   loading: boolean;
   error: string | null;
   connect: () => Promise<void>;
-  disconnect: () => Promise<void>;
+  /** Disconnect one account by email, or all accounts when omitted. */
+  disconnect: (email?: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
-/** Google Calendar connection + upcoming events (M5). */
+/** Google Calendar — one or more connected accounts + aggregated events (M5). */
 export function useCalendar(): CalendarState {
-  const [connected, setConnected] = useState(false);
+  const [accounts, setAccounts] = useState<string[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,9 +24,10 @@ export function useCalendar(): CalendarState {
     setLoading(true);
     setError(null);
     try {
-      const isConn = await commands.calendarConnected();
-      setConnected(isConn);
-      if (isConn) setEvents(await commands.calendarUpcoming());
+      const accts = await commands.calendarAccounts();
+      setAccounts(accts);
+      if (accts.length) setEvents(await commands.calendarUpcoming());
+      else setEvents([]);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -37,7 +40,8 @@ export function useCalendar(): CalendarState {
     setError(null);
     try {
       await commands.calendarConnect(); // resolves after the browser sign-in
-      setConnected(true);
+      const accts = await commands.calendarAccounts();
+      setAccounts(accts);
       setEvents(await commands.calendarUpcoming());
     } catch (e) {
       setError(String(e));
@@ -46,20 +50,31 @@ export function useCalendar(): CalendarState {
     }
   }, []);
 
-  const disconnect = useCallback(async () => {
-    try {
-      await commands.calendarDisconnect();
-    } finally {
-      setConnected(false);
-      setEvents([]);
-    }
-  }, []);
+  const disconnect = useCallback(
+    async (email?: string) => {
+      try {
+        await commands.calendarDisconnect(email);
+      } finally {
+        await refresh();
+      }
+    },
+    [refresh]
+  );
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  return { connected, events, loading, error, connect, disconnect, refresh };
+  return {
+    connected: accounts.length > 0,
+    accounts,
+    events,
+    loading,
+    error,
+    connect,
+    disconnect,
+    refresh,
+  };
 }
 
 /** Group events by local day label for the Calendar page. */
