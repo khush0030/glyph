@@ -33,11 +33,11 @@ Output ONLY the corrected transcript text — no commentary, no labels.";
 const CONCISE_PROMPT: &str = "You convert a meeting transcript into tight, structured notes by calling the emit_notes tool. The full transcript is saved separately — your job is the sharp signal, not a recap. A reader skims this in 30 seconds and knows what happened and what to do.
 
 Be ruthless. Cut anything obvious, filler, or already implied:
-- summary: 2-3 sentences MAX. What the meeting was about and what came out of it. No preamble, no 'the team discussed'.
-- key_points: only what a reader must keep — distinct facts, numbers, context. Merge related ideas into one bullet. Usually 3-6 bullets. Never restate the summary.
+- summary: 1-2 sentences, ~40 words MAX. The single gist of the meeting and its outcome — nothing else. No preamble, no 'the team discussed', no listing of topics.
+- key_points: only what a reader must keep — distinct facts, numbers, context. Merge related ideas into one bullet. Each bullet is one short line. 3-5 bullets, never more than 6. Never restate the summary.
 - decisions: only firm decisions actually reached.
 - open_questions: only real unresolved questions. Often none.
-- action_items: concrete tasks someone must do, with owner + deadline if stated.
+- action_items: concrete tasks someone must do. ALWAYS assign an owner (the person's first name) whenever the transcript makes clear who will do it or who it is directed to — e.g. 'Khush will prepare…', 'Vineet to follow up', 'Malayka, can you handle…', 'assign this to Vineet'. Add a deadline only if stated. Omit the owner only when it is genuinely impossible to tell who is responsible.
 
 NO REDUNDANCY: each fact lives in exactly ONE section. Never repeat a point across summary / key points / decisions / action items.
 
@@ -57,7 +57,7 @@ DETAILED MODE — be comprehensive:
 - key_points: every substantive fact, number, detail, and discussion thread. When unsure whether something matters, include it.
 - decisions: every decision, including tentative or conditional ones.
 - open_questions: every unresolved question or issue raised.
-- action_items: every task, commitment, or follow-up, with owner + deadline if stated.
+- action_items: every task, commitment, or follow-up. ALWAYS assign an owner (the person's first name) whenever the transcript names who will do it or who it is directed to (e.g. 'Khush will…', 'Vineet to follow up', 'Malayka, can you…'). Add a deadline only if stated. Omit the owner only when it is genuinely impossible to tell.
 
 NO REDUNDANCY: each fact belongs in ONE section only. Do not restate the summary as key points, or repeat a decision as a key point or action item.
 
@@ -341,7 +341,7 @@ pub async fn generate_notes(
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "summary": { "type": "string", "description": "Sharp 2-3 sentence summary of what the meeting was about and its outcome." },
+                    "summary": { "type": "string", "description": "Sharp 1-2 sentence (~40 words) summary: the gist of the meeting and its outcome, nothing more." },
                     "key_points": { "type": "array", "items": { "type": "string" }, "description": "Only the distinct facts/numbers/context a reader must keep. Usually 3-6." },
                     "decisions": { "type": "array", "items": { "type": "string" }, "description": "Firm decisions actually reached." },
                     "open_questions": { "type": "array", "items": { "type": "string" }, "description": "Real unresolved questions. Often none." },
@@ -351,7 +351,7 @@ pub async fn generate_notes(
                             "type": "object",
                             "properties": {
                                 "text": { "type": "string" },
-                                "assignee": { "type": "string", "description": "Inferred owner, if any." },
+                                "assignee": { "type": "string", "description": "First name of the person responsible (e.g. 'Khush'), inferred from the transcript whenever it is reasonably clear who owns or was asked to do the task. Omit only if no owner can be identified." },
                                 "due_hint": { "type": "string", "description": "e.g. 'Fri', 'next week', if mentioned." }
                             },
                             "required": ["text"]
