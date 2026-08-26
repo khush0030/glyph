@@ -44,13 +44,18 @@ pub struct PromptState(Mutex<Inner>);
 
 impl PromptState {
     pub fn visible(&self) -> bool {
-        self.0.lock().map(|g| g.visible).unwrap_or(false)
+        self.0
+            .lock()
+            .map(|g| g.visible)
+            .map_err(|e| tracing::error!("prompt state lock poisoned: {e}"))
+            .unwrap_or(false)
     }
 
     pub fn in_cooldown(&self, now: Instant) -> bool {
         self.0
             .lock()
             .map(|g| g.cooldown_until.is_some_and(|t| now < t))
+            .map_err(|e| tracing::error!("prompt state lock poisoned: {e}"))
             .unwrap_or(false)
     }
 }
@@ -59,19 +64,20 @@ impl PromptState {
 /// while already visible just refreshes the card (calendar info arriving after
 /// a generic "detected" card).
 pub fn show(app: &AppHandle, payload: PromptPayload) -> Result<(), String> {
-    let state = app.state::<PromptState>();
-    {
-        let mut g = state.0.lock().map_err(|e| e.to_string())?;
-        g.current = Some(payload.clone());
-        g.visible = true;
-    }
     let win = app
         .get_webview_window(WINDOW_LABEL)
         .ok_or_else(|| "prompt window missing".to_string())?;
     position_top_right(app, &win)?;
-    app.emit_to(WINDOW_LABEL, events::MEETING_DETECTED, payload)
+    app.emit_to(WINDOW_LABEL, events::MEETING_DETECTED, payload.clone())
         .map_err(|e| e.to_string())?;
     win.show().map_err(|e| e.to_string())?;
+
+    let state = app.state::<PromptState>();
+    {
+        let mut g = state.0.lock().map_err(|e| e.to_string())?;
+        g.current = Some(payload);
+        g.visible = true;
+    }
     tracing::info!("prompt shown");
     Ok(())
 }
@@ -89,6 +95,8 @@ pub fn hide(app: &AppHandle, start_cooldown: bool) -> Result<(), String> {
     }
     if let Some(win) = app.get_webview_window(WINDOW_LABEL) {
         win.hide().map_err(|e| e.to_string())?;
+    } else {
+        tracing::warn!("prompt window missing on hide");
     }
     Ok(())
 }
@@ -143,6 +151,8 @@ pub fn prompt_record(app: AppHandle, payload: PromptPayload) -> Result<(), Strin
         main.show().map_err(|e| e.to_string())?;
         main.unminimize().map_err(|e| e.to_string())?;
         main.set_focus().map_err(|e| e.to_string())?;
+    } else {
+        tracing::warn!("main window missing on prompt_record");
     }
     Ok(())
 }
