@@ -19,7 +19,6 @@ export interface Note {
   status: NoteStatus;
   scratch: string;
   audioPath?: string;
-  asanaProjectGid?: string;
 }
 
 export interface StoredActionItem extends ActionItem {
@@ -27,8 +26,6 @@ export interface StoredActionItem extends ActionItem {
   noteId: string;
   /** "ai" generated vs "manual" added. */
   source: "ai" | "manual";
-  /** Null until pushed to Asana. */
-  asanaGid?: string;
 }
 
 export interface NotesStore {

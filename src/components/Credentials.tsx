@@ -11,11 +11,11 @@ interface Field {
 
 const FIELDS: Field[] = [
   {
-    id: "openai_api_key",
-    title: "OpenAI",
-    desc: "GPT-4o — proofreads the transcript, then turns it into structured notes.",
-    placeholder: "sk-…",
-    hint: "platform.openai.com → API keys",
+    id: "sarvam_api_key",
+    title: "Sarvam AI",
+    desc: "One key for both ends — Saaras transcribes the recording (Hindi / English / Hinglish, speaker labels), Sarvam-105B proofreads it and writes the notes.",
+    placeholder: "API subscription key",
+    hint: "dashboard.sarvam.ai → API keys",
   },
   {
     id: "google_oauth_client_id",
@@ -30,13 +30,6 @@ const FIELDS: Field[] = [
     desc: "Required by Google for Desktop clients during sign-in. From the same OAuth client as the ID above.",
     placeholder: "GOCSPX-…",
     hint: "console.cloud.google.com → Credentials → your OAuth client → Client secret",
-  },
-  {
-    id: "asana_access_token",
-    title: "Asana",
-    desc: "Personal Access Token to push action items as assigned, dated tasks.",
-    placeholder: "1/12…",
-    hint: "app.asana.com → Settings → Apps → Personal access tokens",
   },
 ];
 

@@ -218,7 +218,7 @@ mod tests {
 \n\
 export OPENAI_API_KEY=plain-value\n\
 GOOGLE_OAUTH_CLIENT_ID=\"quoted-value\"\n\
-ASANA_ACCESS_TOKEN='single-quoted'\n";
+SARVAM_API_KEY='single-quoted'\n";
         assert_eq!(
             parse_env(content, "OPENAI_API_KEY").as_deref(),
             Some("plain-value")
@@ -228,7 +228,7 @@ ASANA_ACCESS_TOKEN='single-quoted'\n";
             Some("quoted-value")
         );
         assert_eq!(
-            parse_env(content, "ASANA_ACCESS_TOKEN").as_deref(),
+            parse_env(content, "SARVAM_API_KEY").as_deref(),
             Some("single-quoted")
         );
         assert_eq!(parse_env(content, "MISSING"), None);

@@ -6,7 +6,7 @@ export type SettingsMap = Record<string, string>;
 
 export const DEFAULTS: SettingsMap = {
   engine: "cloud",
-  analysis_model: "gpt-4o-mini",
+  analysis_model: "sarvam-105b",
   notes_depth: "concise",
   language: "auto",
   stt_language: "auto",

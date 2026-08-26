@@ -321,16 +321,12 @@
                   <span class="who" id="addWho" style="display:none"><span class="av" style="background:var(--indigo)">K</span> Khush</span>
                 </div>
               </div>
-              <div style="margin-top:16px;display:flex;justify-content:flex-end">
-                <button class="btn lime" onclick="openAsana()"><svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><circle cx="12" cy="6.5" r="2.6"/><circle cx="6.5" cy="15" r="2.6"/><circle cx="17.5" cy="15" r="2.6"/></svg> Send action items to Asana</button>
-              </div>
             </div>
           </div>
           <aside>
             <div class="card scratch" style="margin-bottom:18px"><div class="lb">Your notes</div><textarea placeholder="Jot anything — it gets folded into the clean notes.&#10;&#10;– lock model choice this week&#10;– Cal.com test before Fri"></textarea></div>
             <div class="card scard">
-              <div class="h">Linked Asana project</div><div class="d">Action items route here when sent.</div>
-              <div class="sel" style="margin-bottom:12px">Sarthak Singapore <svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M6 9l6 6 6-6"/></svg></div>
+              <div class="h">Meeting details</div>
               <div class="kv"><span class="k">Type</span><span class="v">Client</span></div>
               <div class="kv"><span class="k">Engine</span><span class="v">Cloud · Scribe v2</span></div>
               <div class="kv"><span class="k">Saved</span><span class="v">On this Mac</span></div>
@@ -360,7 +356,6 @@
       <div class="sech"><span class="t">Integrations</span></div>
       <div class="card">
         <div class="srow"><div><div class="t">Google Calendar</div><div class="d">Pulls upcoming meetings and detects video links to trigger recording.</div></div><span class="conn"><span class="d"></span> Connected</span></div>
-        <div class="srow"><div><div class="t">Asana</div><div class="d">Push action items as tasks with assignees and due dates, into client or internal projects.</div></div><span class="conn"><span class="d"></span> Connected</span></div>
       </div>
       <div class="sech"><span class="t">Recording & privacy</span></div>
       <div class="card">
@@ -370,22 +365,6 @@
       </div>
     </section>
   </main>
-</div>
-
-<!-- ASANA MODAL -->
-<div class="ov" id="asanaModal">
-  <div class="modal">
-    <div class="mh"><div class="t"><svg class="ic" viewBox="0 0 24 24" style="width:18px;height:18px;color:var(--indigo)"><circle cx="12" cy="6.5" r="2.6"/><circle cx="6.5" cy="15" r="2.6"/><circle cx="17.5" cy="15" r="2.6"/></svg> Send action items to Asana</div><button class="x" onclick="closeAsana()">×</button></div>
-    <div class="mb">
-      <div class="fl">Project</div>
-      <div class="sel">Sarthak Singapore (Client) <svg class="ic" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M6 9l6 6 6-6"/></svg></div>
-      <div class="fl">Tasks to create</div>
-      <div class="task"><div class="cb"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div><div class="tt">Finalise phonetic dictionary for loanwords</div><span class="as">Khush</span><span class="dd">Wed</span></div>
-      <div class="task"><div class="cb"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div><div class="tt">Wire Cal.com booking + confirmation</div><span class="as">Vineeth</span><span class="dd">Fri</span></div>
-      <div class="task"><div class="cb"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></div><div class="tt">Share noise samples from last 3 calls</div><span class="as">Amaan</span><span class="dd">—</span></div>
-    </div>
-    <div class="mf"><div class="info">3 tasks · linked back to this meeting</div><button class="btn primary" onclick="closeAsana()">Create 3 tasks</button></div>
-  </div>
 </div>
 
 <script>
@@ -409,9 +388,6 @@
     document.getElementById('mtab-transcript').style.display=t.dataset.mtab==='transcript'?'block':'none';
   });
   document.querySelectorAll('.seg').forEach(s=>s.querySelectorAll('button').forEach(b=>b.onclick=()=>{s.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on')}));
-  function openAsana(){document.getElementById('asanaModal').classList.add('show')}
-  function closeAsana(){document.getElementById('asanaModal').classList.remove('show')}
-  document.getElementById('asanaModal').addEventListener('click',e=>{if(e.target.id==='asanaModal')closeAsana()});
   // manual action item
   function focusAdd(){
     document.getElementById('addPl').style.display='none';

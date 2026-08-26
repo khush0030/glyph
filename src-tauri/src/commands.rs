@@ -1,6 +1,6 @@
 //! Tauri commands (frontend → Rust), SPEC §10. M0 wires the few that work
 //! without API keys (settings persistence backed by SQLite + a health check);
-//! recording/calendar/asana commands arrive in their milestones.
+//! recording/calendar commands arrive in their milestones.
 
 use std::collections::HashMap;
 use std::sync::Mutex;

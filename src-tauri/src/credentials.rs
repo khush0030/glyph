@@ -9,10 +9,9 @@ use crate::keychain;
 
 /// The credentials Glyph stores. Keychain account name == the id string.
 pub const CREDENTIAL_IDS: &[&str] = &[
-    "openai_api_key",       // GPT-4o transcript cleanup + note generation (M3)
+    "sarvam_api_key",       // Sarvam AI: batch STT (saaras) + notes LLM (sarvam-105b)
     "google_oauth_client_id", // Google Calendar + Gmail OAuth client (M5)
     "google_oauth_client_secret", // some Desktop clients require it in token exchange
-    "asana_access_token",   // Asana PAT / OAuth token (M6)
 ];
 
 fn is_known(id: &str) -> bool {

@@ -58,14 +58,6 @@ export const ChevronDownIcon = (p: P) => (
   </svg>
 );
 
-export const AsanaIcon = (p: P) => (
-  <svg className="ic" viewBox="0 0 24 24" {...p}>
-    <circle cx="12" cy="6.5" r="2.6" />
-    <circle cx="6.5" cy="15" r="2.6" />
-    <circle cx="17.5" cy="15" r="2.6" />
-  </svg>
-);
-
 export const CheckIcon = (p: P) => (
   <svg
     viewBox="0 0 24 24"

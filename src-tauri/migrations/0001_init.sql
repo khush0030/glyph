@@ -12,8 +12,7 @@ CREATE TABLE IF NOT EXISTS notes (
   duration_sec       INTEGER NOT NULL DEFAULT 0,
   status             TEXT NOT NULL DEFAULT 'draft',
   scratch            TEXT NOT NULL DEFAULT '',
-  audio_path         TEXT,
-  asana_project_gid  TEXT
+  audio_path         TEXT
 );
 
 CREATE TABLE IF NOT EXISTS segments (
@@ -40,8 +39,7 @@ CREATE TABLE IF NOT EXISTS action_items (
   text       TEXT NOT NULL,
   assignee   TEXT,
   due_hint   TEXT,
-  source     TEXT NOT NULL,                    -- ai | manual
-  asana_gid  TEXT                              -- null until pushed
+  source     TEXT NOT NULL                     -- ai | manual
 );
 CREATE INDEX IF NOT EXISTS idx_action_items_note ON action_items(note_id);
 

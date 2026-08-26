@@ -3,29 +3,28 @@
 Read this first, every session. `SPEC.md` is the detail, `ROADMAP.md` is the order of work. Ship the cloud path first; local "Private Mode" comes later as its own milestone.
 
 ## What we're building
-**Glyph** — a desktop-first macOS meeting notetaker. It records mic + system audio (online calls) or mic alone (in-person meetings), transcribes Hindi / English / Hinglish, and turns the transcript plus the user's sparse typed notes into clean structured notes (summary, key points, decisions, action items). It pulls upcoming meetings from the calendar, can auto- or manually start recording, and pushes action items straight to Asana with assignees. Granola-style, clean, minimal.
+**Glyph** — a desktop-first macOS meeting notetaker. It records mic + system audio (online calls) or mic alone (in-person meetings), transcribes Hindi / English / Hinglish, and turns the transcript plus the user's sparse typed notes into clean structured notes (summary, key points, decisions, action items). It pulls upcoming meetings from the calendar and can auto- or manually start recording. Granola-style, clean, minimal.
 
 ## Locked stack (do not change without asking)
 - **Shell:** Tauri v2 — Rust core + React + TypeScript + Tailwind frontend.
 - **Audio capture:** native **Swift CLI sidecar** — Core Audio process tap (system audio) + AVAudioEngine (mic), mixed to 16 kHz mono PCM, streamed to Rust over stdout. Shipped as a Tauri `externalBin`.
-- **STT (cloud default):** **ElevenLabs Scribe v2 Realtime** over WebSocket (~$0.28/hr, ~150 ms, language = multi).
-- **Analysis LLM (cloud default):** **OpenAI GPT-4o-mini** (`gpt-4o-mini`, well under 1¢/meeting), two-pass: proofread the transcript, then summarize. `gpt-4o` as an optional "deep notes" toggle. (Migrated off Claude Haiku on 2026-06-27 for cost — no Anthropic dependency remains.)
+- **STT (cloud default):** **Sarvam AI Saaras (`saaras:v3`) batch STT** — transcribe-after-stop: the WAV is uploaded as a one-file batch job (up to 2 h), polled, output mapped to segments with speaker diarization labels. `language_code = unknown` (auto), `mode = transcribe`. (Replaced ElevenLabs Scribe on 2026-08-26 — Sarvam credits + better Hindi/Hinglish.)
+- **Analysis LLM (cloud default):** **Sarvam AI `sarvam-105b`** via its OpenAI-compatible `/v1/chat/completions` (tools + forced tool_choice supported), two-pass: proofread the transcript, then summarize. One Sarvam key (`sarvam_api_key` in Keychain) serves both STT and LLM. (Haiku → GPT-4o-mini on 2026-06-27, → Sarvam on 2026-08-26.)
 - **Private Mode (local, later milestone):** Whisper large-v3-turbo (`whisper.cpp`/whisper-rs, Metal) + Ollama (`qwen2.5:7b`). Same interfaces — a toggle, not a second app.
 - **Calendar:** Google Calendar API via OAuth (PKCE, system browser, token in macOS Keychain).
-- **Tasks:** Asana API via OAuth — action items → tasks with assignee, due date, project.
-- **Storage:** local **SQLite**. No web backend — the desktop app holds API keys in the macOS Keychain and calls OpenAI / Google (Calendar + Gmail) / Asana directly.
+- **Storage:** local **SQLite**. No web backend — the desktop app holds API keys in the macOS Keychain and calls Sarvam / Google (Calendar + Gmail) directly.
 
 ## The six swappable interfaces (core rule)
 The React UI depends ONLY on these, never on a concrete implementation. Cloud vs local is which implementation is wired in.
 - `AudioSource` — emits 16 kHz mono PCM (+ RMS). Always the native sidecar.
-- `Transcriber` — PCM → `{text, lang, startMs, endMs, isFinal}`. Cloud: Scribe v2. Local: Whisper.
-- `NoteGenerator` — transcript + scratch → markdown. Cloud: OpenAI GPT-4o (two-pass). Local: Ollama.
+- `Transcriber` — PCM → `{text, lang, startMs, endMs, isFinal}`. Cloud: Sarvam Saaras (batch). Local: Whisper.
+- `NoteGenerator` — transcript + scratch → markdown. Cloud: Sarvam-105B (two-pass). Local: Ollama.
 - `NotesStore` — SQLite persistence.
 - `CalendarSource` — upcoming events + video-link detection. Google Calendar.
 - `TaskExporter` — action items → external tasks. Asana.
 
 ## Hard rules
-1. **Keys live in the macOS Keychain only** — never in the repo, never in plaintext config. OpenAI/Google/Asana tokens all go through Keychain.
+1. **Keys live in the macOS Keychain only** — never in the repo, never in plaintext config. Sarvam/Google/Asana tokens all go through Keychain.
 2. **Do not translate transcribed text.** Every line stays in the language spoken. The note-gen prompt enforces this. Translation is a future opt-in feature.
 3. **Always run STT with language = multi / auto.** Never force `hi` or `en`.
 4. **Spike the risky thing first.** The Swift audio sidecar is ~80% of the project risk. M1 proves it before any UI polish or note-gen.

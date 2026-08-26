@@ -1,14 +1,14 @@
-// NoteGenerator — transcript + scratch → structured markdown. Cloud: OpenAI
-// GPT-4o (M3, two-pass: proofread then summarize). Local: Ollama (M8). Never
-// translates lines.
+// NoteGenerator — transcript + scratch → structured markdown. Cloud: Sarvam
+// AI sarvam-105b (M3, two-pass: proofread then summarize). Local: Ollama (M8).
+// Never translates lines.
 
 import type { Segment } from "./Transcriber";
 
-export type AnalysisModel = "gpt-4o-mini" | "gpt-4o";
+export type AnalysisModel = "sarvam-105b";
 
 export interface ActionItem {
   text: string;
-  /** Inferred assignee name, mapped to an Asana user later. */
+  /** Inferred assignee name. */
   assignee?: string;
   /** Natural-language due hint, e.g. "Fri", "next week". */
   dueHint?: string;
@@ -17,7 +17,7 @@ export interface ActionItem {
 export interface GeneratedNote {
   /** Full markdown: Summary / Key points / Decisions / Action items. */
   markdown: string;
-  /** Structured action items parsed out for Asana export. */
+  /** Structured action items parsed out of the notes. */
   actionItems: ActionItem[];
   model: AnalysisModel;
 }

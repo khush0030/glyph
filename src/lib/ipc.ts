@@ -11,10 +11,11 @@ export const commands = {
   startRecording: (source: RecordMode, eventId?: string) =>
     invoke<string>("start_recording", { source, eventId }),
   stopRecording: () => invoke<string>("stop_recording"),
-  // Local whisper.cpp transcription of a finished recording WAV → segments.
+  // Transcribe a finished recording WAV → segments. engine: "cloud" (Sarvam
+  // batch STT, default) or "private" (local whisper.cpp).
   // language: undefined/"auto" = auto-detect, or "hi"/"en" to force.
-  transcribeRecording: (wavPath: string, language?: string) =>
-    invoke<StoredSegment[]>("transcribe_recording", { wavPath, language }),
+  transcribeRecording: (wavPath: string, language?: string, engine?: string) =>
+    invoke<StoredSegment[]>("transcribe_recording", { wavPath, language, engine }),
   // NotesStore (SQLite persistence).
   createNote: (source: NoteSource, title?: string) =>
     invoke<string>("create_note", { source, title }),
@@ -51,19 +52,6 @@ export const commands = {
   checkPermissions: () => invoke<Permissions>("check_permissions"),
   requestPermissions: () => invoke<Permissions>("request_permissions"),
   openPermissionSettings: () => invoke<void>("open_permission_settings"),
-  // Asana (Personal Access Token).
-  asanaWorkspaces: () => invoke<AsanaIdName[]>("asana_workspaces"),
-  asanaProjects: (workspace: string) =>
-    invoke<AsanaIdName[]>("asana_projects", { workspace }),
-  asanaUsers: (workspace: string) =>
-    invoke<AsanaUser[]>("asana_users", { workspace }),
-  asanaCreateTasks: (
-    noteId: string,
-    projectGid: string,
-    workspace: string,
-    items: AsanaTaskIn[]
-  ) =>
-    invoke<number>("asana_create_tasks", { noteId, projectGid, workspace, items }),
 
   // Calendar — one or more Google accounts via OAuth (PKCE).
   calendarConnected: () => invoke<boolean>("calendar_connected"),
@@ -90,7 +78,7 @@ export const commands = {
     filename: string
   ) => invoke<void>("gmail_send", { from, to, subject, body, pdfBase64, filename }),
 
-  // Notes — fold transcript + scratch into structured notes via OpenAI.
+  // Notes — fold transcript + scratch into structured notes via Sarvam AI.
   generateNotes: (
     transcript: string,
     scratch: string,
@@ -120,24 +108,6 @@ export interface CalendarEvent {
   autoRecord: string;
 }
 
-export interface AsanaIdName {
-  gid: string;
-  name: string;
-}
-
-export interface AsanaUser {
-  gid: string;
-  name: string;
-  email: string | null;
-}
-
-export interface AsanaTaskIn {
-  actionItemId: string;
-  text: string;
-  assigneeGid?: string;
-  dueOn?: string;
-}
-
 export type MicPermission = "authorized" | "denied" | "restricted" | "undetermined";
 export type ScreenPermission = "granted" | "denied";
 export interface Permissions {
@@ -145,7 +115,7 @@ export interface Permissions {
   screen: ScreenPermission;
 }
 
-export type AnalysisModelId = "gpt-4o-mini" | "gpt-4o";
+export type AnalysisModelId = "sarvam-105b";
 export type NotesDepth = "concise" | "detailed";
 
 export interface GeneratedActionItem {
@@ -188,7 +158,6 @@ export interface StoredActionItem {
   assignee?: string;
   dueHint?: string;
   source: "ai" | "manual";
-  asanaGid?: string;
 }
 
 export interface NoteDetail {
@@ -213,10 +182,9 @@ export interface NoteDetail {
 }
 
 export type CredentialId =
-  | "openai_api_key"
+  | "sarvam_api_key"
   | "google_oauth_client_id"
-  | "google_oauth_client_secret"
-  | "asana_access_token";
+  | "google_oauth_client_secret";
 
 export interface CredentialStatus {
   id: CredentialId;
@@ -231,7 +199,6 @@ export const EVENTS = {
   recordingStatus: "recording://status",
   notesGenerated: "notes://generated",
   meetingStarting: "meeting://starting",
-  asanaCreated: "asana://created",
 } as const;
 
 export function on<T>(

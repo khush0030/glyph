@@ -7,7 +7,7 @@ function fmtTime(ms: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// Live transcript: committed segments from Scribe v2 plus the in-progress
+// Transcript: committed segments (Sarvam cloud or local Whisper) plus the in-progress
 // partial. Devanagari lines keep their script via the .dev font — never
 // translated. When there are no live segments yet, shows a hint.
 export default function Transcript({
@@ -26,8 +26,8 @@ export default function Transcript({
       {empty && (
         <div className="text-[13.5px] text-faint">
           {recording
-            ? "Recording… the transcript is generated on this Mac when you stop."
-            : "No transcript yet. Start recording — it's transcribed locally when you stop."}
+            ? "Recording… the transcript is generated when you stop."
+            : "No transcript yet. Start recording — it's transcribed when you stop."}
         </div>
       )}
 

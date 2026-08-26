@@ -180,21 +180,35 @@ fn drop_repetition_runs(segs: Vec<Seg>) -> Vec<Seg> {
     out
 }
 
-/// Transcribe a finished recording WAV → segments. Downloads the model on first
-/// use, then runs whisper.cpp off the async runtime.
+/// Transcribe a finished recording WAV → segments. `engine` = "cloud" (Sarvam
+/// batch STT, default) or "private" (local whisper.cpp; downloads the model on
+/// first use, then runs off the async runtime).
 #[tauri::command]
 pub async fn transcribe_recording(
     app: AppHandle,
     wav_path: String,
     language: Option<String>,
+    engine: Option<String>,
 ) -> Result<Vec<Seg>, String> {
+    let lang = language.filter(|s| !s.is_empty() && s != "auto");
+    if engine.as_deref() != Some("private") {
+        let key = crate::keychain::get("sarvam_api_key")
+            .map_err(|e| e.to_string())?
+            .filter(|s| !s.is_empty())
+            .ok_or("No Sarvam API key — add it in Settings → API keys, or switch the transcription engine to Private.")?;
+        let segs = crate::stt::transcribe_wav(&app, &key, &wav_path, lang.as_deref()).await?;
+        let _ = app.emit(
+            events::RECORDING_STATUS,
+            serde_json::json!({"state":"transcribed","segments":segs.len()}),
+        );
+        return Ok(segs);
+    }
     let model = ensure_model(&app).await?;
     let model_str = model.to_string_lossy().to_string();
     let _ = app.emit(
         events::RECORDING_STATUS,
         serde_json::json!({"state":"transcribing"}),
     );
-    let lang = language.filter(|s| !s.is_empty() && s != "auto");
     let segs = tauri::async_runtime::spawn_blocking(move || {
         let samples = read_wav_f32(&wav_path)?;
         if samples.is_empty() {

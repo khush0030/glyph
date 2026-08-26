@@ -154,7 +154,6 @@ pub struct ActionItemRow {
     assignee: Option<String>,
     due_hint: Option<String>,
     source: String,
-    asana_gid: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -310,7 +309,7 @@ pub fn get_note(db: State<'_, Db>, id: String) -> Result<NoteDetail, String> {
         });
 
     let mut ai_stmt = conn
-        .prepare("SELECT id, text, assignee, due_hint, source, asana_gid FROM action_items WHERE note_id = ?1 ORDER BY rowid")
+        .prepare("SELECT id, text, assignee, due_hint, source FROM action_items WHERE note_id = ?1 ORDER BY rowid")
         .map_err(|e| e.to_string())?;
     let action_items = ai_stmt
         .query_map(params![id], |r| {
@@ -320,7 +319,6 @@ pub fn get_note(db: State<'_, Db>, id: String) -> Result<NoteDetail, String> {
                 assignee: r.get(2)?,
                 due_hint: r.get(3)?,
                 source: r.get(4)?,
-                asana_gid: r.get(5)?,
             })
         })
         .map_err(|e| e.to_string())?

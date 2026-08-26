@@ -3,7 +3,6 @@
 // Windows release builds (no-op on macOS).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod asana;
 mod audio;
 mod calendar;
 mod commands;
@@ -80,10 +79,6 @@ fn main() {
             store::notes_cmds::delete_audio,
             store::notes_cmds::reveal_note_files,
             store::notes_cmds::save_note_pdf,
-            asana::asana_workspaces,
-            asana::asana_projects,
-            asana::asana_users,
-            asana::asana_create_tasks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Glyph");

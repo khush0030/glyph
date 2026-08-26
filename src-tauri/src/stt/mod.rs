@@ -1,153 +1,362 @@
-//! Transcriber — ElevenLabs Scribe v2 Realtime WebSocket client (cloud default).
-//! Sends 16 kHz mono PCM as base64 `input_audio_chunk` messages and forwards
-//! `partial_transcript` / `committed_transcript` results to the UI as
-//! `transcript://partial` / `transcript://final` events.
+//! Cloud Transcriber — Sarvam AI batch speech-to-text (saaras:v3).
 //!
-//! language is left unset on the connection → Scribe auto-detects (Hindi /
-//! English / Hinglish). We never force a language and never translate.
+//! Transcribe-after-stop, same shape as the local Whisper path: the finished
+//! 16 kHz mono WAV is uploaded as a one-file batch job, polled to completion,
+//! and the output JSON is mapped to `Seg`s. Batch (not the 30 s sync endpoint)
+//! because meetings run long (up to 2 h/file) and only batch offers speaker
+//! diarization. Language stays `unknown` (auto) unless the user forces one;
+//! mode = transcribe, so nothing is translated (CLAUDE.md rule #2).
+//!
+//! Flow: POST job/v1 → POST upload-files (presigned PUT) → POST start →
+//! GET status until Completed → POST download-files → GET output JSON.
 
-use futures_util::{SinkExt, StreamExt};
+use std::time::Duration;
+
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
-use tokio::sync::mpsc;
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::Message;
 
 use crate::events;
+use crate::whisper::Seg;
 
-const WS_URL: &str =
-    "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&include_timestamps=true";
+const BASE: &str = "https://api.sarvam.ai";
+const MODEL: &str = "saaras:v3";
+const POLL_EVERY: Duration = Duration::from_secs(3);
+const POLL_TIMEOUT: Duration = Duration::from_secs(20 * 60);
 
-/// Handle to a live Scribe session. Push base64 PCM frames; drop to close.
-pub struct ScribeHandle {
-    audio_tx: mpsc::UnboundedSender<String>,
-}
-
-impl ScribeHandle {
-    /// Forward one base64-encoded 16 kHz Int16 PCM frame to Scribe.
-    pub fn push_b64(&self, b64: String) {
-        let _ = self.audio_tx.send(b64);
+/// Map the app's language setting ("hi" / "en" / None=auto) to Sarvam BCP-47.
+fn language_code(lang: Option<&str>) -> &'static str {
+    match lang {
+        Some("hi") => "hi-IN",
+        Some("en") => "en-IN",
+        _ => "unknown",
     }
 }
 
-/// Connect, then spawn writer (PCM → WS) and reader (WS → UI events) tasks.
-/// Dropping the returned handle ends the writer, which closes the socket and
-/// stops the reader.
-pub async fn connect(app: AppHandle, api_key: String) -> Result<ScribeHandle, String> {
-    let mut req = WS_URL
-        .into_client_request()
-        .map_err(|e| format!("bad ws request: {e}"))?;
-    req.headers_mut().insert(
-        "xi-api-key",
-        api_key.parse().map_err(|_| "invalid api key header".to_string())?,
-    );
-
-    let (ws, _resp) = connect_async(req)
-        .await
-        .map_err(|e| format!("scribe connect failed: {e}"))?;
-    let (mut write, mut read) = ws.split();
-
-    let (audio_tx, mut audio_rx) = mpsc::unbounded_channel::<String>();
-
-    // Writer: drain PCM frames → input_audio_chunk messages.
-    tauri::async_runtime::spawn(async move {
-        while let Some(b64) = audio_rx.recv().await {
-            let msg = json!({
-                "message_type": "input_audio_chunk",
-                "audio_base_64": b64,
-                "sample_rate": 16_000,
-            });
-            if write.send(Message::Text(msg.to_string())).await.is_err() {
-                break;
-            }
-        }
-        // Channel closed (handle dropped) → flush a final commit and close.
-        let commit = json!({
-            "message_type": "input_audio_chunk",
-            "audio_base_64": "",
-            "commit": true,
-            "sample_rate": 16_000,
-        });
-        let _ = write.send(Message::Text(commit.to_string())).await;
-        let _ = write.send(Message::Close(None)).await;
-    });
-
-    // Reader: parse transcripts → UI events.
-    let app_evt = app.clone();
-    tauri::async_runtime::spawn(async move {
-        while let Some(Ok(msg)) = read.next().await {
-            let Message::Text(text) = msg else { continue };
-            let Ok(v) = serde_json::from_str::<Value>(&text) else {
-                continue;
-            };
-            match v.get("message_type").and_then(|m| m.as_str()) {
-                Some("session_started") => {
-                    tracing::info!("scribe session started");
-                }
-                Some("partial_transcript") => {
-                    emit_segment(&app_evt, events::TRANSCRIPT_PARTIAL, &v, false);
-                }
-                // With include_timestamps=true Scribe emits BOTH a plain
-                // `committed_transcript` (no word timings → start=0) and a
-                // `committed_transcript_with_timestamps` for the same segment.
-                // Commit only the timestamped one, else every segment is
-                // duplicated and one copy is stamped 0:00.
-                Some("committed_transcript_with_timestamps") => {
-                    emit_segment(&app_evt, events::TRANSCRIPT_FINAL, &v, true);
-                }
-                Some("committed_transcript") => {
-                    tracing::debug!("ignoring untimed committed_transcript (dupe of timestamped)");
-                }
-                other => {
-                    tracing::debug!("scribe msg: {:?}", other);
-                }
-            }
-        }
-        tracing::info!("scribe reader closed");
-    });
-
-    Ok(ScribeHandle { audio_tx })
+fn status(app: &AppHandle, state: &str) {
+    let _ = app.emit(events::RECORDING_STATUS, json!({ "state": state }));
 }
 
-/// Build a Segment-shaped payload and emit it. start/end come from the word
-/// timestamps when present; language from the detected `language` field if any.
-fn emit_segment(app: &AppHandle, event: &str, v: &Value, is_final: bool) {
-    let text = v
-        .get("text")
+async fn api_error(resp: reqwest::Response, what: &str) -> String {
+    let code = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    let msg = serde_json::from_str::<Value>(&body)
+        .ok()
+        .and_then(|v| {
+            v.get("error")
+                .and_then(|e| e.get("message").or(Some(e)))
+                .or_else(|| v.get("detail"))
+                .map(|m| m.to_string())
+        })
+        .unwrap_or(body);
+    format!("Sarvam {what} {code}: {msg}")
+}
+
+/// Upload + transcribe one WAV via a Sarvam batch job. Emits recording://status
+/// ("uploading" → "transcribing") along the way.
+pub async fn transcribe_wav(
+    app: &AppHandle,
+    api_key: &str,
+    wav_path: &str,
+    language: Option<&str>,
+) -> Result<Vec<Seg>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let auth = |r: reqwest::RequestBuilder| r.header("api-subscription-key", api_key);
+
+    // 1. Create the job.
+    status(app, "uploading");
+    let body = json!({
+        "job_parameters": {
+            "model": MODEL,
+            "mode": "transcribe",
+            "language_code": language_code(language),
+            "with_timestamps": true,
+            "with_diarization": true,
+        }
+    });
+    let resp = auth(client.post(format!("{BASE}/speech-to-text/job/v1")))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Sarvam create job: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(api_error(resp, "create job").await);
+    }
+    let v: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let job_id = v
+        .get("job_id")
+        .and_then(|j| j.as_str())
+        .ok_or("Sarvam create job: no job_id")?
+        .to_string();
+
+    // 2. Presigned upload URL → PUT the WAV (Azure block blob).
+    let file_name = "0.wav";
+    let resp = auth(client.post(format!("{BASE}/speech-to-text/job/v1/upload-files")))
+        .json(&json!({ "job_id": job_id, "files": [file_name] }))
+        .send()
+        .await
+        .map_err(|e| format!("Sarvam upload-files: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(api_error(resp, "upload-files").await);
+    }
+    let v: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let upload_url = v
+        .get("upload_urls")
+        .and_then(|u| u.get(file_name))
+        .and_then(|u| u.get("file_url"))
+        .and_then(|u| u.as_str())
+        .ok_or("Sarvam upload-files: no upload url")?
+        .to_string();
+    let bytes = tokio::fs::read(wav_path)
+        .await
+        .map_err(|e| format!("read wav: {e}"))?;
+    let resp = client
+        .put(&upload_url)
+        .header("x-ms-blob-type", "BlockBlob")
+        .header("Content-Type", "audio/wav")
+        .body(bytes)
+        .send()
+        .await
+        .map_err(|e| format!("Sarvam upload: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(api_error(resp, "upload").await);
+    }
+
+    // 3. Start.
+    let resp = auth(client.post(format!("{BASE}/speech-to-text/job/v1/{job_id}/start")))
+        .send()
+        .await
+        .map_err(|e| format!("Sarvam start: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(api_error(resp, "start").await);
+    }
+
+    // 4. Poll.
+    status(app, "transcribing");
+    let started = std::time::Instant::now();
+    let output_file = loop {
+        tokio::time::sleep(POLL_EVERY).await;
+        let resp = auth(client.get(format!("{BASE}/speech-to-text/job/v1/{job_id}/status")))
+            .send()
+            .await
+            .map_err(|e| format!("Sarvam status: {e}"))?;
+        if !resp.status().is_success() {
+            return Err(api_error(resp, "status").await);
+        }
+        let v: Value = resp.json().await.map_err(|e| e.to_string())?;
+        let state = v.get("job_state").and_then(|s| s.as_str()).unwrap_or("");
+        tracing::info!("sarvam job {job_id}: {state}");
+        match state {
+            "Completed" | "PartiallyCompleted" => {
+                let out = v
+                    .get("job_details")
+                    .and_then(|d| d.as_array())
+                    .and_then(|d| d.first())
+                    .and_then(|d| d.get("outputs"))
+                    .and_then(|o| o.as_array())
+                    .and_then(|o| o.first())
+                    .and_then(|o| o.get("file_name"))
+                    .and_then(|f| f.as_str())
+                    .map(String::from);
+                match out {
+                    Some(f) => break f,
+                    None => {
+                        let err = v
+                            .get("job_details")
+                            .and_then(|d| d.as_array())
+                            .and_then(|d| d.first())
+                            .and_then(|d| d.get("error_message"))
+                            .and_then(|e| e.as_str())
+                            .unwrap_or("no output file");
+                        return Err(format!("Sarvam transcription failed: {err}"));
+                    }
+                }
+            }
+            "Failed" => {
+                let err = v
+                    .get("error_message")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error");
+                return Err(format!("Sarvam job failed: {err}"));
+            }
+            _ => {}
+        }
+        if started.elapsed() > POLL_TIMEOUT {
+            return Err("Sarvam job timed out".into());
+        }
+    };
+
+    // 5. Download the output JSON.
+    let resp = auth(client.post(format!("{BASE}/speech-to-text/job/v1/download-files")))
+        .json(&json!({ "job_id": job_id, "files": [output_file] }))
+        .send()
+        .await
+        .map_err(|e| format!("Sarvam download-files: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(api_error(resp, "download-files").await);
+    }
+    let v: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let dl_url = v
+        .get("download_urls")
+        .and_then(|u| u.get(&output_file))
+        .and_then(|u| u.get("file_url"))
+        .and_then(|u| u.as_str())
+        .ok_or("Sarvam download-files: no download url")?
+        .to_string();
+    let resp = client
+        .get(&dl_url)
+        .send()
+        .await
+        .map_err(|e| format!("Sarvam download: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(api_error(resp, "download").await);
+    }
+    let out: Value = resp.json().await.map_err(|e| format!("bad output json: {e}"))?;
+    Ok(segments_from_output(&out))
+}
+
+/// Map Sarvam's output JSON to segments. Prefers diarized entries (speaker-
+/// labelled when >1 speaker), then chunk timestamps, then the whole transcript.
+fn segments_from_output(out: &Value) -> Vec<Seg> {
+    let lang = out
+        .get("language_code")
+        .and_then(|l| l.as_str())
+        .map(|l| l.split('-').next().unwrap_or(l).to_string())
+        .filter(|l| l != "unknown")
+        .unwrap_or_default();
+
+    if let Some(entries) = out
+        .get("diarized_transcript")
+        .and_then(|d| d.get("entries"))
+        .and_then(|e| e.as_array())
+    {
+        let speakers: std::collections::BTreeSet<&str> = entries
+            .iter()
+            .filter_map(|e| e.get("speaker_id").and_then(|s| s.as_str()))
+            .collect();
+        let label = speakers.len() > 1;
+        let segs: Vec<Seg> = entries
+            .iter()
+            .filter_map(|e| {
+                let text = e.get("transcript")?.as_str()?.trim();
+                if !text.chars().any(|c| c.is_alphanumeric()) {
+                    return None;
+                }
+                let speaker = e.get("speaker_id").and_then(|s| s.as_str()).unwrap_or("");
+                let text = if label && !speaker.is_empty() {
+                    format!("{}: {text}", speaker_label(speaker))
+                } else {
+                    text.to_string()
+                };
+                Some(Seg {
+                    text,
+                    lang: lang.clone(),
+                    start_ms: secs_ms(e.get("start_time_seconds")),
+                    end_ms: secs_ms(e.get("end_time_seconds")),
+                    is_final: true,
+                })
+            })
+            .collect();
+        if !segs.is_empty() {
+            return segs;
+        }
+    }
+
+    if let Some(ts) = out.get("timestamps") {
+        let words = ts.get("words").and_then(|w| w.as_array());
+        let starts = ts.get("start_time_seconds").and_then(|w| w.as_array());
+        let ends = ts.get("end_time_seconds").and_then(|w| w.as_array());
+        if let (Some(words), Some(starts), Some(ends)) = (words, starts, ends) {
+            let segs: Vec<Seg> = words
+                .iter()
+                .enumerate()
+                .filter_map(|(i, w)| {
+                    let text = w.as_str()?.trim();
+                    if !text.chars().any(|c| c.is_alphanumeric()) {
+                        return None;
+                    }
+                    Some(Seg {
+                        text: text.to_string(),
+                        lang: lang.clone(),
+                        start_ms: secs_ms(starts.get(i)),
+                        end_ms: secs_ms(ends.get(i)),
+                        is_final: true,
+                    })
+                })
+                .collect();
+            if !segs.is_empty() {
+                return segs;
+            }
+        }
+    }
+
+    let text = out
+        .get("transcript")
         .and_then(|t| t.as_str())
         .unwrap_or("")
-        .to_string();
+        .trim();
     if text.is_empty() {
-        return;
+        return vec![];
     }
-    let words = v.get("words").and_then(|w| w.as_array());
-    let start_ms = words
-        .and_then(|w| w.first())
-        .and_then(|w| w.get("start"))
-        .and_then(|s| s.as_f64())
-        .map(|s| (s * 1000.0) as i64)
-        .unwrap_or(0);
-    let end_ms = words
-        .and_then(|w| w.last())
-        .and_then(|w| w.get("end"))
-        .and_then(|s| s.as_f64())
-        .map(|s| (s * 1000.0) as i64)
-        .unwrap_or(0);
-    let lang = v
-        .get("language")
-        .and_then(|l| l.as_str())
-        .unwrap_or("")
-        .to_string();
+    vec![Seg {
+        text: text.to_string(),
+        lang,
+        start_ms: 0,
+        end_ms: 0,
+        is_final: true,
+    }]
+}
 
-    let _ = app.emit(
-        event,
-        json!({
-            "text": text,
-            "lang": lang,
-            "startMs": start_ms,
-            "endMs": end_ms,
-            "isFinal": is_final,
-        }),
-    );
+fn secs_ms(v: Option<&Value>) -> i64 {
+    v.and_then(|s| s.as_f64()).map(|s| (s * 1000.0) as i64).unwrap_or(0)
+}
+
+/// "SPEAKER_00" / "speaker_1" / "0" → "Speaker 1".
+fn speaker_label(id: &str) -> String {
+    let digits: String = id.chars().filter(|c| c.is_ascii_digit()).collect();
+    match digits.parse::<u32>() {
+        Ok(n) => format!("Speaker {}", n + 1),
+        Err(_) => id.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_diarized_output() {
+        let out = json!({
+            "transcript": "hello there kaise ho",
+            "language_code": "hi-IN",
+            "diarized_transcript": { "entries": [
+                { "transcript": "hello there", "start_time_seconds": 0.5, "end_time_seconds": 1.2, "speaker_id": "SPEAKER_00" },
+                { "transcript": "kaise ho", "start_time_seconds": 1.5, "end_time_seconds": 2.0, "speaker_id": "SPEAKER_01" }
+            ]}
+        });
+        let s = segments_from_output(&out);
+        assert_eq!(s.len(), 2);
+        assert_eq!(s[0].text, "Speaker 1: hello there");
+        assert_eq!(s[0].start_ms, 500);
+        assert_eq!(s[1].text, "Speaker 2: kaise ho");
+        assert_eq!(s[0].lang, "hi");
+    }
+
+    #[test]
+    fn single_speaker_unlabelled_and_fallbacks() {
+        let out = json!({
+            "transcript": "just me",
+            "diarized_transcript": { "entries": [
+                { "transcript": "just me", "start_time_seconds": 0.0, "end_time_seconds": 1.0, "speaker_id": "SPEAKER_00" }
+            ]}
+        });
+        assert_eq!(segments_from_output(&out)[0].text, "just me");
+        let out = json!({ "transcript": "plain", "language_code": "unknown" });
+        let s = segments_from_output(&out);
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].text, "plain");
+        assert_eq!(s[0].lang, "");
+    }
 }

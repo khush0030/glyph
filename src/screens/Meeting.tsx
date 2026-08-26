@@ -3,7 +3,6 @@ import { Seg } from "../components/ui";
 import RecordButton from "../components/RecordButton";
 import NotesView from "../components/NotesView";
 import Transcript from "../components/Transcript";
-import AsanaModal from "../components/AsanaModal";
 import EmailModal from "../components/EmailModal";
 import { type Segment } from "../lib/useTranscript";
 import { useSettings } from "../lib/useSettings";
@@ -43,7 +42,6 @@ export default function Meeting({
   onDeleted: () => void;
 }) {
   const [tab, setTab] = useState<Tab>(isRecording ? "transcript" : "notes");
-  const [asanaOpen, setAsanaOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [note, setNote] = useState<NoteDetail | null>(null);
@@ -167,7 +165,7 @@ export default function Meeting({
     try {
       const lang =
         settings.stt_language && settings.stt_language !== "auto" ? settings.stt_language : undefined;
-      const segs = await commands.transcribeRecording(note.audioPath, lang);
+      const segs = await commands.transcribeRecording(note.audioPath, lang, settings.engine);
       await commands.saveSegments(noteId, segs);
       const text = segs.map((s) => s.text).join("\n");
       if (text.trim() || scratch.trim()) {
@@ -303,7 +301,6 @@ export default function Meeting({
             onGenerate={() => generate()}
             onAddActionItem={addActionItem}
             onDeleteActionItem={deleteActionItem}
-            onOpenAsana={() => setAsanaOpen(true)}
             onExportPdf={exportPdf}
             onEmail={() => setEmailOpen(true)}
             exporting={exporting}
@@ -317,15 +314,6 @@ export default function Meeting({
         </div>
       ) : (
         <Transcript segments={displaySegments} partial="" recording={isRecording} />
-      )}
-
-      {asanaOpen && note && (
-        <AsanaModal
-          noteId={noteId}
-          items={note.actionItems}
-          onClose={() => setAsanaOpen(false)}
-          onSent={reload}
-        />
       )}
 
       {emailOpen && note && (

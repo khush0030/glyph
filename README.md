@@ -54,8 +54,8 @@ outside the app — see [Where your data lives](#where-your-data-lives)).
 
 ## First-run setup
 
-**1. Add your OpenAI API key** (required for generating notes; transcription
-is local and needs no key).
+**1. Add your Sarvam AI API key** (one key powers both cloud transcription
+and note generation; Private Mode transcription is local and needs no key).
 
 Create a file at:
 
@@ -66,16 +66,16 @@ Create a file at:
 with:
 
 ```
-OPENAI_API_KEY=sk-...
+SARVAM_API_KEY=...
 ```
 
-Get a key at <https://platform.openai.com/api-keys>. Google Calendar and
+Get a key at <https://dashboard.sarvam.ai>. Google Calendar and
 Asana keys are optional — see [`.env.example`](.env.example) for the full list.
 Quick way to create it:
 
 ```bash
 mkdir -p ~/Library/Application\ Support/ai.oltaflock.glyph
-printf 'OPENAI_API_KEY=sk-REPLACE_ME\n' > ~/Library/Application\ Support/ai.oltaflock.glyph/.env
+printf 'SARVAM_API_KEY=REPLACE_ME\n' > ~/Library/Application\ Support/ai.oltaflock.glyph/.env
 ```
 
 Then quit and reopen Glyph.
@@ -102,7 +102,7 @@ remembered).
 - **Transcribes locally** with whisper.cpp (Whisper large-v3-turbo, Metal GPU) —
   Hindi / English / Hinglish, in the language actually spoken. No cloud, no
   per-minute cost, no quota. Transcription runs **after you stop**.
-- **Generates structured notes** with OpenAI (GPT-4o) — it first proofreads the
+- **Generates structured notes** with Sarvam AI (Sarvam-105B) — it first proofreads the
   transcript, then writes Summary · Key points · Decisions · Open questions ·
   Action items. Notes are written in **English**; the verbatim transcript stays
   in the original language. Toggle **Concise / Detailed**.
@@ -121,11 +121,11 @@ remembered).
 React + TS + Tailwind  (Tauri v2 WebView)
         │  IPC (typed commands/events)
         ▼
-Tauri Core (Rust)  ──  AudioController · whisper.cpp · OpenAI · Google Cal · Gmail · Asana · SQLite
+Tauri Core (Rust)  ──  AudioController · Sarvam STT · whisper.cpp · Sarvam LLM · Google Cal · Gmail · Asana · SQLite
         │
    ┌────┴───────────────┬─────────────────────┬──────────────────────┐
    ▼                    ▼                     ▼                      ▼
-audiocap (Swift)   whisper.cpp (local)   OpenAI GPT-4o         Google Cal / Gmail / Asana
+audiocap (Swift)   Sarvam Saaras / whisper.cpp   Sarvam-105B     Google Cal / Gmail / Asana
 mic + system tap   large-v3-turbo, Metal (clean + notes)       (OAuth, PKCE)  [optional]
 → 16kHz mono WAV   transcribe-after-stop
 ```
@@ -137,7 +137,7 @@ each can change without touching the UI.
 |------------------|-------------------------------------------------|
 | `AudioSource`    | Native Swift sidecar (`audiocap`)               |
 | `Transcriber`    | **Local whisper.cpp** (large-v3-turbo, Metal)   |
-| `NoteGenerator`  | OpenAI GPT-4o-mini (GPT-4o optional), two-pass  |
+| `NoteGenerator`  | Sarvam AI sarvam-105b, two-pass                  |
 | `NotesStore`     | SQLite (+ per-meeting `.txt`/`.md` exports)      |
 | `CalendarSource` | Google Calendar (OAuth PKCE)                    |
 | `TaskExporter`   | Asana (OAuth / token)                           |

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import PageHeader from "../components/PageHeader";
-import { Card, SectionHead, Seg, ConnPill } from "../components/ui";
+import { Card, SectionHead, Seg } from "../components/ui";
 import Credentials from "../components/Credentials";
-import { CalendarIcon, AsanaIcon } from "../components/Icons";
+import { CalendarIcon } from "../components/Icons";
 import { commands } from "../lib/ipc";
 import { useSettings } from "../lib/useSettings";
 import { useCredentials } from "../lib/useCredentials";
@@ -68,7 +68,7 @@ export default function Settings() {
       <Card>
         <SRow
           title="Transcription engine"
-          desc="Cloud uses ElevenLabs Scribe v2 (~$0.28/hr, best accuracy). Private Mode runs Whisper locally — nothing leaves your Mac."
+          desc="Cloud uses Sarvam AI Saaras (built for Hindi / English / Hinglish, with speaker labels). Private Mode runs Whisper locally — nothing leaves your Mac."
           control={
             <Seg
               options={["Cloud", "Private"]}
@@ -79,15 +79,9 @@ export default function Settings() {
         />
         <SRow
           title="Analysis model"
-          desc="Each meeting runs two OpenAI passes — proofread the transcript, then summarize. GPT-4o mini is cheap (well under 1¢/meeting); GPT-4o is sharper on long, messy calls."
+          desc="Each meeting runs two Sarvam AI passes — proofread the transcript, then summarize. Sarvam-105B is the flagship model, tuned for Indian languages and Hinglish."
           control={
-            <Seg
-              options={["GPT-4o mini", "GPT-4o"]}
-              value={idx(["gpt-4o-mini", "gpt-4o"], values.analysis_model)}
-              onChange={(i) =>
-                set("analysis_model", ["gpt-4o-mini", "gpt-4o"][i])
-              }
-            />
+            <span className="text-[12.5px] font-semibold text-muted">Sarvam-105B</span>
           }
         />
         <SRow
@@ -150,20 +144,6 @@ export default function Settings() {
                   {cal.loading ? "Waiting for Google…" : cal.accounts.length ? "Connect another account" : "Connect account"}
                 </button>
               </div>
-            )
-          }
-        />
-        <SRow
-          icon={<AsanaIcon className="w-[18px] h-[18px]" />}
-          title="Asana"
-          desc="Push action items as tasks with assignees and due dates, into client or internal projects."
-          control={
-            creds.isSet("asana_access_token") ? (
-              <ConnPill>Connected</ConnPill>
-            ) : (
-              <span className="text-[12.5px] font-semibold text-faint">
-                Add token above
-              </span>
             )
           }
         />

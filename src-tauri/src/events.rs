@@ -9,4 +9,3 @@ pub const RECORDING_LEVEL: &str = "recording://level";
 pub const RECORDING_STATUS: &str = "recording://status";
 pub const NOTES_GENERATED: &str = "notes://generated";
 pub const MEETING_STARTING: &str = "meeting://starting";
-pub const ASANA_CREATED: &str = "asana://created";

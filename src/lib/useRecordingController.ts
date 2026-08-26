@@ -35,6 +35,7 @@ export function useRecordingController(): RecordingController {
       const p = e.payload;
       if (p.state === "downloading_model")
         setStatusMsg(`Downloading speech model… ${p.pct ?? 0}%`);
+      else if (p.state === "uploading") setStatusMsg("Uploading audio…");
       else if (p.state === "transcribing") setStatusMsg("Transcribing…");
       else setStatusMsg("");
     }).then((u) => (un = u));
@@ -56,7 +57,7 @@ export function useRecordingController(): RecordingController {
     const wav = await rec.stop();
     try {
       const lang = settings.stt_language && settings.stt_language !== "auto" ? settings.stt_language : undefined;
-      const segs = wav ? await commands.transcribeRecording(wav, lang) : [];
+      const segs = wav ? await commands.transcribeRecording(wav, lang, settings.engine) : [];
       await commands.saveSegments(id, segs);
       await commands.setRecordingResult(id, wav ?? null, rec.elapsed);
       if (segs.length > 0 && settings.audio_retention === "delete") {
@@ -82,7 +83,7 @@ export function useRecordingController(): RecordingController {
       setActiveNoteId(null);
       setFinishedToken((t) => t + 1);
     }
-  }, [activeNoteId, rec, settings.audio_retention, settings.analysis_model, settings.notes_depth, settings.stt_language]);
+  }, [activeNoteId, rec, settings.audio_retention, settings.analysis_model, settings.notes_depth, settings.stt_language, settings.engine]);
 
   return {
     recording: rec.recording,

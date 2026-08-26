@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import ActionItems from "./ActionItems";
 import { Btn, Seg } from "./ui";
-import { AsanaIcon, ChevronDownIcon } from "./Icons";
+import { ChevronDownIcon } from "./Icons";
 import { isDevanagari } from "../lib/useTranscript";
 import type { StoredActionItem, NotesDepth } from "../lib/ipc";
 
@@ -37,7 +37,6 @@ export default function NotesView({
   onGenerate,
   onAddActionItem,
   onDeleteActionItem,
-  onOpenAsana,
   onExportPdf,
   onEmail,
   exporting,
@@ -58,7 +57,6 @@ export default function NotesView({
   onGenerate: () => void;
   onAddActionItem: (text: string) => void;
   onDeleteActionItem: (id: string) => void;
-  onOpenAsana: () => void;
   onExportPdf: () => void;
   onEmail: () => void;
   exporting: boolean;
@@ -261,18 +259,10 @@ export default function NotesView({
               text: a.text,
               assignee: a.assignee,
               dueHint: a.dueHint,
-              sent: !!a.asanaGid,
             }))}
             onAdd={onAddActionItem}
             onDelete={onDeleteActionItem}
           />
-          {actionItems.length > 0 && (
-            <div className="mt-3 flex justify-end">
-              <Btn variant="lime" onClick={onOpenAsana}>
-                <AsanaIcon className="w-[15px] h-[15px]" /> Send to Asana
-              </Btn>
-            </div>
-          )}
         </CollapsibleSection>
 
         {scratchBlock}

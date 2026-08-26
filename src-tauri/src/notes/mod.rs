@@ -1,4 +1,4 @@
-//! NoteGenerator — OpenAI Chat Completions API. Two passes:
+//! NoteGenerator — Sarvam AI Chat Completions (OpenAI-compatible). Two passes:
 //!   1. CLEAN — proofread the raw transcript (fix STT errors, grammar, filler;
 //!      same language, no summary) so the model summarizes accurate text.
 //!   2. NOTES — fold the cleaned transcript + the user's scratch into structured
@@ -14,8 +14,8 @@ use serde_json::{json, Value};
 
 use crate::keychain;
 
-const API_URL: &str = "https://api.openai.com/v1/chat/completions";
-const DEFAULT_MODEL: &str = "gpt-4o-mini";
+const API_URL: &str = "https://api.sarvam.ai/v1/chat/completions";
+const DEFAULT_MODEL: &str = "sarvam-105b";
 
 /// Pass 1 — proofread the raw transcript before it is summarized. Keeps the
 /// spoken language and every fact; only fixes recognition noise.
@@ -295,14 +295,14 @@ pub async fn generate_notes(
     model: Option<String>,
     depth: Option<String>,
 ) -> Result<GeneratedNote, String> {
-    let key = keychain::get("openai_api_key")
+    let key = keychain::get("sarvam_api_key")
         .map_err(|e| e.to_string())?
         .filter(|s| !s.is_empty())
-        .ok_or("No OpenAI API key — add it in Settings → API keys.")?;
-    // Guard against a stale stored model id (e.g. a legacy non-OpenAI value):
-    // only OpenAI chat models are valid against this endpoint.
+        .ok_or("No Sarvam API key — add it in Settings → API keys.")?;
+    // Guard against a stale stored model id (e.g. a legacy gpt-* value from
+    // the OpenAI era): only Sarvam chat models are valid against this endpoint.
     let model = match model {
-        Some(m) if m.starts_with("gpt") => m,
+        Some(m) if m.starts_with("sarvam") => m,
         _ => DEFAULT_MODEL.to_string(),
     };
 
@@ -395,7 +395,7 @@ pub async fn generate_notes(
             .and_then(|e| e.get("message"))
             .and_then(|m| m.as_str())
             .unwrap_or("unknown error");
-        return Err(format!("OpenAI API {status}: {msg}"));
+        return Err(format!("Sarvam API {status}: {msg}"));
     }
 
     // The forced function call returns its arguments as a JSON string.
@@ -436,6 +436,7 @@ async fn clean_transcript(
         "model": model,
         "temperature": 0.2,
         "max_tokens": 16000,
+        "reasoning_effort": "low",
         "messages": [
             { "role": "system", "content": CLEAN_PROMPT },
             { "role": "user", "content": transcript }
@@ -456,7 +457,7 @@ async fn clean_transcript(
             .and_then(|e| e.get("message"))
             .and_then(|m| m.as_str())
             .unwrap_or("unknown error");
-        return Err(format!("OpenAI API {status}: {msg}"));
+        return Err(format!("Sarvam API {status}: {msg}"));
     }
     Ok(v
         .get("choices")

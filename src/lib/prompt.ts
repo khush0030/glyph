@@ -1,7 +1,7 @@
 // Note-generation prompt contract (SPEC §7). Filled in at M3; kept here so the
 // contract lives next to the frontend types. Hard rules baked in:
 //   - Markdown sections: Summary, Key points, Decisions, Action items.
-//   - Each action item is structured { text, assignee?, dueHint? } for Asana.
+//   - Each action item is structured { text, assignee?, dueHint? }.
 //   - NEVER translate — preserve each line's language (Devanagari for Hindi).
 //   - Treat scratch notes as high-priority signal. Terse, no preamble.
 

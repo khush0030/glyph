@@ -1,4 +1,4 @@
-// Transcriber — PCM → segments. Cloud: ElevenLabs Scribe v2 Realtime (M2).
+// Transcriber — PCM → segments. Cloud: Sarvam AI Saaras batch STT (M2).
 // Local: Whisper (Private Mode, M8). Always language = multi; never translate.
 
 export interface Segment {
@@ -12,7 +12,7 @@ export interface Segment {
 }
 
 export interface Transcriber {
-  /** Open the STT stream (WS for Scribe). */
+  /** Open the STT session. */
   open(): Promise<void>;
   /** Push a frame of 16 kHz mono Int16 PCM. */
   push(pcm: Int16Array): void;

@@ -6,4 +6,3 @@ export * from "./Transcriber";
 export * from "./NoteGenerator";
 export * from "./NotesStore";
 export * from "./CalendarSource";
-export * from "./TaskExporter";
