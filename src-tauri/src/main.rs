@@ -11,6 +11,7 @@ mod events;
 mod gmail;
 mod keychain;
 mod notes;
+mod prompt;
 mod stt;
 mod store;
 mod whisper;
@@ -33,6 +34,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .manage(audio::AudioState::default())
+        .manage(prompt::PromptState::default())
         .setup(|app| {
             // Per-app data dir, e.g. ~/Library/Application Support/ai.oltaflock.glyph
             let dir = app.path().app_data_dir()?;
@@ -64,6 +66,10 @@ fn main() {
             calendar::calendar_upcoming,
             calendar::calendar_attendees,
             calendar::calendar_accounts,
+            prompt::show_prompt,
+            prompt::prompt_current,
+            prompt::prompt_dismiss,
+            prompt::prompt_record,
             gmail::gmail_send,
             store::notes_cmds::create_note,
             store::notes_cmds::list_notes,

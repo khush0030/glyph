@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core permissions for the Glyph main window.",
-  "windows": ["main"],
+  "description": "Core permissions for the Glyph main + prompt windows.",
+  "windows": ["main", "prompt"],
   "permissions": [
     "core:default",
     "opener:default",

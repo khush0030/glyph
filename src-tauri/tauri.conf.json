@@ -10,8 +10,10 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
+        "label": "main",
         "title": "Glyph",
         "width": 1180,
         "height": 780,
@@ -19,6 +21,21 @@
         "minHeight": 640,
         "resizable": true,
         "titleBarStyle": "Transparent"
+      },
+      {
+        "label": "prompt",
+        "title": "Glyph",
+        "url": "index.html",
+        "width": 360,
+        "height": 168,
+        "visible": false,
+        "focus": false,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "transparent": true,
+        "resizable": false,
+        "skipTaskbar": true,
+        "visibleOnAllWorkspaces": true
       }
     ],
     "security": {

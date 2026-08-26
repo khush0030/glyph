@@ -9,3 +9,10 @@ pub const RECORDING_LEVEL: &str = "recording://level";
 pub const RECORDING_STATUS: &str = "recording://status";
 pub const NOTES_GENERATED: &str = "notes://generated";
 pub const MEETING_STARTING: &str = "meeting://starting";
+
+/// → `prompt` window: show/refresh the popup with a PromptPayload.
+pub const MEETING_DETECTED: &str = "meeting://detected";
+/// → `prompt` window: the detected call ended; hide if still showing.
+pub const MEETING_ENDED: &str = "meeting://ended";
+/// → `main` window: user clicked Record in the popup; payload = PromptPayload.
+pub const PROMPT_RECORD: &str = "prompt://record";
