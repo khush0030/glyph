@@ -7,6 +7,7 @@ mod audio;
 mod calendar;
 mod commands;
 mod credentials;
+mod detect;
 mod events;
 mod gmail;
 mod keychain;
@@ -35,6 +36,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .manage(audio::AudioState::default())
         .manage(prompt::PromptState::default())
+        .manage(detect::DetectState::default())
         .setup(|app| {
             // Per-app data dir, e.g. ~/Library/Application Support/ai.oltaflock.glyph
             let dir = app.path().app_data_dir()?;
@@ -43,6 +45,7 @@ fn main() {
                 .map_err(|e| format!("db init failed: {e}"))?;
             tracing::info!("glyph db ready at {}", db_path.display());
             app.manage(Db(Mutex::new(conn)));
+            detect::start_if_enabled(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -70,6 +73,7 @@ fn main() {
             prompt::prompt_current,
             prompt::prompt_dismiss,
             prompt::prompt_record,
+            detect::detect_set_enabled,
             gmail::gmail_send,
             store::notes_cmds::create_note,
             store::notes_cmds::list_notes,

@@ -121,7 +121,7 @@ async fn pipeline(
 }
 
 /// Split `buf` on newlines, invoking `cb` per complete line; keep the remainder.
-fn drain_lines(buf: &mut Vec<u8>, mut cb: impl FnMut(&[u8])) {
+pub(crate) fn drain_lines(buf: &mut Vec<u8>, mut cb: impl FnMut(&[u8])) {
     let mut start = 0;
     while let Some(pos) = buf[start..].iter().position(|&b| b == b'\n') {
         let end = start + pos;
