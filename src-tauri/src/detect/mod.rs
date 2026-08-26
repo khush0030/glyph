@@ -123,18 +123,24 @@ fn read_enabled(app: &AppHandle) -> bool {
 pub fn detect_set_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
     let state = app.state::<DetectState>();
     if enabled {
-        if !state.running.load(Ordering::SeqCst) {
-            spawn_loop(app.clone());
-        }
+        spawn_loop(app.clone());
         return Ok(());
     }
     // Bump the generation first so any loop currently sleeping in backoff
     // sees it's stale and exits without clobbering `running` on wake.
     state.generation.fetch_add(1, Ordering::SeqCst);
     state.running.store(false, Ordering::SeqCst);
-    let child = state.child.lock().map_err(|e| e.to_string())?.take();
+    let child = match state.child.lock() {
+        Ok(mut g) => g.take(),
+        Err(e) => {
+            tracing::warn!("detect: child mutex poisoned on disable: {e}");
+            None
+        }
+    };
     if let Some(c) = child {
-        c.kill().map_err(|e| e.to_string())?;
+        if let Err(e) = c.kill() {
+            tracing::warn!("detect: failed to kill sidecar on disable: {e}");
+        }
     }
     if let Err(e) = prompt::hide(&app, false) {
         tracing::warn!("detect: hide prompt failed: {e}");
@@ -165,7 +171,15 @@ fn spawn_loop(app: AppHandle) {
     // Scoped so the State borrow ends before `app` moves into the task.
     let my_gen = {
         let state = app.state::<DetectState>();
-        state.running.store(true, Ordering::SeqCst);
+        // Only one caller wins the transition to running; a second call
+        // (e.g. a racing detect_set_enabled(true)) is a no-op.
+        if state
+            .running
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return;
+        }
         state.generation.fetch_add(1, Ordering::SeqCst) + 1
     };
     tauri::async_runtime::spawn(async move {
@@ -206,16 +220,15 @@ fn spawn_loop(app: AppHandle) {
                 break; // stopped on purpose
             }
             tracing::warn!("detect: sidecar exited, restarting in {backoff:?}");
+            let ran_for = started.elapsed();
             tokio::time::sleep(backoff).await;
-            backoff = next_backoff(backoff, started.elapsed());
+            backoff = next_backoff(backoff, ran_for);
         }
-        // Only the generation that owns the loop gets to clear `running` —
-        // otherwise a stale loop waking from backoff could silently undo a
-        // newer detect_set_enabled(true) that already started spawning.
-        let state = app.state::<DetectState>();
-        if state.generation.load(Ordering::SeqCst) == my_gen {
-            state.running.store(false, Ordering::SeqCst);
-        }
+        // The loop only ever `break`s (above) once this generation has been
+        // superseded, so `state.generation == my_gen` never holds here —
+        // `running` is deliberately left alone. It's cleared only by
+        // `detect_set_enabled(false)` / `shutdown`, whichever caused the
+        // supersession.
         tracing::info!("detect: stopped");
     });
 }
@@ -252,6 +265,9 @@ async fn consume(app: &AppHandle, mut rx: tauri::async_runtime::Receiver<Command
 }
 
 async fn handle_line(app: &AppHandle, line: &str) {
+    if line.trim().is_empty() {
+        return;
+    }
     let v = match serde_json::from_str::<Value>(line) {
         Ok(v) => v,
         Err(e) => {
