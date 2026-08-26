@@ -78,6 +78,17 @@ const BACKOFF_MAX: Duration = Duration::from_secs(60);
 /// A run longer than this counts as healthy and resets the backoff.
 const HEALTHY_RUN: Duration = Duration::from_secs(60);
 
+/// Backoff for the *next* restart, given the current backoff and how long
+/// the sidecar just ran for. A healthy run resets to the minimum; a quick
+/// exit doubles the current backoff, capped at the maximum.
+fn next_backoff(current: Duration, ran_for: Duration) -> Duration {
+    if ran_for > HEALTHY_RUN {
+        BACKOFF_MIN
+    } else {
+        (current * 2).min(BACKOFF_MAX)
+    }
+}
+
 #[derive(Default)]
 pub struct DetectState {
     child: Mutex<Option<CommandChild>>,
@@ -117,12 +128,37 @@ pub fn detect_set_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
         }
         return Ok(());
     }
+    // Bump the generation first so any loop currently sleeping in backoff
+    // sees it's stale and exits without clobbering `running` on wake.
     state.generation.fetch_add(1, Ordering::SeqCst);
+    state.running.store(false, Ordering::SeqCst);
     let child = state.child.lock().map_err(|e| e.to_string())?.take();
     if let Some(c) = child {
         c.kill().map_err(|e| e.to_string())?;
     }
-    prompt::hide(&app, false)
+    if let Err(e) = prompt::hide(&app, false) {
+        tracing::warn!("detect: hide prompt failed: {e}");
+    }
+    Ok(())
+}
+
+/// Called on app exit: stop the detect loop and make sure the sidecar
+/// process doesn't outlive the app. Never panics — best-effort cleanup.
+pub fn shutdown(app: &AppHandle) {
+    let state = app.state::<DetectState>();
+    state.generation.fetch_add(1, Ordering::SeqCst);
+    state.running.store(false, Ordering::SeqCst);
+    match state.child.lock() {
+        Ok(mut g) => {
+            if let Some(child) = g.take() {
+                if let Err(e) = child.kill() {
+                    tracing::warn!("detect: failed to kill sidecar on shutdown: {e}");
+                }
+            }
+        }
+        Err(e) => tracing::warn!("detect: child mutex poisoned on shutdown: {e}"),
+    }
+    tracing::info!("detect: shutdown");
 }
 
 fn spawn_loop(app: AppHandle) {
@@ -159,21 +195,27 @@ fn spawn_loop(app: AppHandle) {
             tracing::info!("detect: sidecar running");
             let started = Instant::now();
             consume(&app, rx).await;
-            if let Ok(mut g) = state.child.lock() {
-                g.take();
+            // A stale loop (superseded by a newer generation) must not drop
+            // the newer loop's live child out from under it.
+            if state.generation.load(Ordering::SeqCst) == my_gen {
+                if let Ok(mut g) = state.child.lock() {
+                    g.take();
+                }
             }
             if state.generation.load(Ordering::SeqCst) != my_gen {
                 break; // stopped on purpose
             }
-            backoff = if started.elapsed() > HEALTHY_RUN {
-                BACKOFF_MIN
-            } else {
-                (backoff * 2).min(BACKOFF_MAX)
-            };
             tracing::warn!("detect: sidecar exited, restarting in {backoff:?}");
             tokio::time::sleep(backoff).await;
+            backoff = next_backoff(backoff, started.elapsed());
         }
-        app.state::<DetectState>().running.store(false, Ordering::SeqCst);
+        // Only the generation that owns the loop gets to clear `running` —
+        // otherwise a stale loop waking from backoff could silently undo a
+        // newer detect_set_enabled(true) that already started spawning.
+        let state = app.state::<DetectState>();
+        if state.generation.load(Ordering::SeqCst) == my_gen {
+            state.running.store(false, Ordering::SeqCst);
+        }
         tracing::info!("detect: stopped");
     });
 }
@@ -201,14 +243,21 @@ async fn consume(app: &AppHandle, mut rx: tauri::async_runtime::Receiver<Command
                 });
             }
             CommandEvent::Terminated(_) => break,
+            CommandEvent::Error(e) => {
+                tracing::warn!("detect: sidecar error: {e}");
+            }
             _ => {}
         }
     }
 }
 
 async fn handle_line(app: &AppHandle, line: &str) {
-    let Ok(v) = serde_json::from_str::<Value>(line) else {
-        return;
+    let v = match serde_json::from_str::<Value>(line) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!("detect: malformed line from sidecar: {e} ({line:?})");
+            return;
+        }
     };
     match v.get("evt").and_then(|e| e.as_str()) {
         Some("call_started") => {
@@ -220,21 +269,42 @@ async fn handle_line(app: &AppHandle, line: &str) {
     }
 }
 
-async fn on_call_started(app: &AppHandle, platform: &str) {
-    let recording = app
-        .state::<AudioState>()
+/// Whether a recording is currently in progress.
+fn is_recording(app: &AppHandle) -> bool {
+    app.state::<AudioState>()
         .0
         .lock()
         .map(|g| g.is_some())
-        .unwrap_or(false);
+        .unwrap_or(false)
+}
+
+fn suppressed(app: &AppHandle) -> bool {
     let ps = app.state::<PromptState>();
-    if !should_prompt(recording, ps.visible(), ps.in_cooldown(Instant::now())) {
+    !should_prompt(is_recording(app), ps.visible(), ps.in_cooldown(Instant::now()))
+}
+
+async fn on_call_started(app: &AppHandle, platform: &str) {
+    if suppressed(app) {
         tracing::info!("detect: call_started ({platform}) suppressed");
         return;
     }
     // Not connected / fetch failed → generic card (spec: error handling).
-    let events = calendar::calendar_upcoming().await.unwrap_or_default();
+    let events = match calendar::calendar_upcoming().await {
+        Ok(events) => events,
+        Err(e) => {
+            tracing::warn!("detect: calendar_upcoming failed: {e}");
+            Vec::new()
+        }
+    };
     let payload = build_payload(platform, match_event(&events, now_ms()));
+
+    // Recording/visible/cooldown state may have changed while we awaited
+    // the calendar fetch — re-check right before showing the prompt.
+    if suppressed(app) {
+        tracing::info!("detect: call_started suppressed after calendar fetch");
+        return;
+    }
+
     tracing::info!("detect: call_started ({platform}) → prompt '{}'", payload.title);
     if let Err(e) = prompt::show(app, payload) {
         tracing::error!("detect: show prompt failed: {e}");
@@ -329,5 +399,54 @@ mod tests {
         let u = build_payload("unknown", None);
         assert_eq!(u.title, "Meeting");
         assert_eq!(u.platform, None);
+    }
+
+    #[test]
+    fn payload_teams_fallback() {
+        let p = build_payload("teams", None);
+        assert_eq!(p.title, "Teams meeting");
+        assert_eq!(p.platform.as_deref(), Some("Teams"));
+    }
+
+    #[test]
+    fn match_event_inclusive_at_lower_bound() {
+        let events = vec![ev("edge", NOW - 10 * MIN, true)];
+        assert_eq!(match_event(&events, NOW).map(|e| e.id.as_str()), Some("edge"));
+    }
+
+    #[test]
+    fn match_event_inclusive_at_upper_bound() {
+        let events = vec![ev("edge", NOW + 5 * MIN, true)];
+        assert_eq!(match_event(&events, NOW).map(|e| e.id.as_str()), Some("edge"));
+    }
+
+    #[test]
+    fn match_event_empty_events_none() {
+        let events: Vec<CalendarEvent> = vec![];
+        assert!(match_event(&events, NOW).is_none());
+    }
+
+    #[test]
+    fn next_backoff_healthy_run_resets() {
+        assert_eq!(
+            next_backoff(BACKOFF_MAX, HEALTHY_RUN + Duration::from_secs(1)),
+            BACKOFF_MIN
+        );
+    }
+
+    #[test]
+    fn next_backoff_short_run_doubles() {
+        assert_eq!(
+            next_backoff(Duration::from_secs(2), Duration::from_secs(1)),
+            Duration::from_secs(4)
+        );
+    }
+
+    #[test]
+    fn next_backoff_caps_at_max() {
+        assert_eq!(
+            next_backoff(Duration::from_secs(40), Duration::from_secs(1)),
+            Duration::from_secs(60)
+        );
     }
 }

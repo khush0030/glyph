@@ -90,6 +90,11 @@ fn main() {
             store::notes_cmds::reveal_note_files,
             store::notes_cmds::save_note_pdf,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Glyph");
+        .build(tauri::generate_context!())
+        .expect("error while building Glyph")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                detect::shutdown(app);
+            }
+        });
 }
