@@ -8,13 +8,15 @@ import AVFoundation
 //   audiocap --wav OUT [--seconds N]   write a WAV for listening (M1 validation)
 //   audiocap --check-perms         print {mic,screen} permission JSON, exit
 //   audiocap --request-perms       trigger OS permission prompts, then report
+//   audiocap --detect              headless call detector (see Detect.swift)
 //   flags: --no-system   capture mic only (skip the system-audio tap)
 //
 // Status / level / error lines are JSON on stderr.
 
-// Permission probes are one-shot: handle before any audio engine setup.
+// One-shot / headless modes: handle before any audio engine setup.
 if CommandLine.arguments.contains("--check-perms") { Permissions.report() }
 if CommandLine.arguments.contains("--request-perms") { Permissions.request() }
+if CommandLine.arguments.contains("--detect") { Detect.run() }
 
 struct Args {
     var wavPath: String?
