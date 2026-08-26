@@ -8,7 +8,7 @@
 
 Records mic + system audio, transcribes **locally** in the language spoken, and
 turns the transcript plus your sparse typed notes into clean structured notes —
-summary, key points, decisions, and action items you can push to Asana.
+summary, key points, decisions, and action items.
 
 Granola-style. Clean indigo + lime. Minimal. Runs on your Mac — audio never
 leaves the device.
@@ -69,8 +69,8 @@ with:
 SARVAM_API_KEY=...
 ```
 
-Get a key at <https://dashboard.sarvam.ai>. Google Calendar and
-Asana keys are optional — see [`.env.example`](.env.example) for the full list.
+Get a key at <https://dashboard.sarvam.ai>. Google Calendar keys are
+optional — see [`.env.example`](.env.example) for the full list.
 Quick way to create it:
 
 ```bash
@@ -110,7 +110,6 @@ remembered).
   to the meeting's attendees via Gmail.
 - **Pulls upcoming meetings** from Google Calendar (optional) and can auto- or
   ask-to-record at start time.
-- **Exports action items to Asana** (optional) as tasks with assignee/due/project.
 - **Stores everything locally** in SQLite, plus readable `transcript.txt` /
   `notes.md` files per meeting. Automatic DB backups on every launch.
 - **Light & dark themes.**
@@ -121,11 +120,11 @@ remembered).
 React + TS + Tailwind  (Tauri v2 WebView)
         │  IPC (typed commands/events)
         ▼
-Tauri Core (Rust)  ──  AudioController · Sarvam STT · whisper.cpp · Sarvam LLM · Google Cal · Gmail · Asana · SQLite
+Tauri Core (Rust)  ──  AudioController · Sarvam STT · whisper.cpp · Sarvam LLM · Google Cal · Gmail · SQLite
         │
    ┌────┴───────────────┬─────────────────────┬──────────────────────┐
    ▼                    ▼                     ▼                      ▼
-audiocap (Swift)   Sarvam Saaras / whisper.cpp   Sarvam-105B     Google Cal / Gmail / Asana
+audiocap (Swift)   Sarvam Saaras / whisper.cpp   Sarvam-105B     Google Cal / Gmail
 mic + system tap   large-v3-turbo, Metal (clean + notes)       (OAuth, PKCE)  [optional]
 → 16kHz mono WAV   transcribe-after-stop
 ```
@@ -140,7 +139,6 @@ each can change without touching the UI.
 | `NoteGenerator`  | Sarvam AI sarvam-105b, two-pass                  |
 | `NotesStore`     | SQLite (+ per-meeting `.txt`/`.md` exports)      |
 | `CalendarSource` | Google Calendar (OAuth PKCE)                    |
-| `TaskExporter`   | Asana (OAuth / token)                           |
 
 **STT is batch + on-device:** the recording is saved as a 16 kHz WAV while you
 talk; on **Stop**, whisper.cpp transcribes the whole file in one pass. No
@@ -239,7 +237,7 @@ glyph/
 ├─ sidecar/audiocap/  Swift audio capture sidecar
 ├─ src-tauri/         Rust core
 │  ├─ migrations/     0001_init.sql                # SQLite schema
-│  └─ src/            audio · whisper · notes · store · calendar · asana ·
+│  └─ src/            audio · whisper · notes · store · calendar ·
 │                     keychain · commands · events
 └─ src/               React frontend
    ├─ screens/        Dashboard · Calendar · Notes · Meeting · Settings

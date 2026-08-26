@@ -14,30 +14,29 @@ Read this first, every session. `SPEC.md` is the detail, `ROADMAP.md` is the ord
 - **Calendar:** Google Calendar API via OAuth (PKCE, system browser, token in macOS Keychain).
 - **Storage:** local **SQLite**. No web backend — the desktop app holds API keys in the macOS Keychain and calls Sarvam / Google (Calendar + Gmail) directly.
 
-## The six swappable interfaces (core rule)
+## The five swappable interfaces (core rule)
 The React UI depends ONLY on these, never on a concrete implementation. Cloud vs local is which implementation is wired in.
 - `AudioSource` — emits 16 kHz mono PCM (+ RMS). Always the native sidecar.
 - `Transcriber` — PCM → `{text, lang, startMs, endMs, isFinal}`. Cloud: Sarvam Saaras (batch). Local: Whisper.
 - `NoteGenerator` — transcript + scratch → markdown. Cloud: Sarvam-105B (two-pass). Local: Ollama.
 - `NotesStore` — SQLite persistence.
 - `CalendarSource` — upcoming events + video-link detection. Google Calendar.
-- `TaskExporter` — action items → external tasks. Asana.
 
 ## Hard rules
-1. **Keys live in the macOS Keychain only** — never in the repo, never in plaintext config. Sarvam/Google/Asana tokens all go through Keychain.
+1. **Keys live in the macOS Keychain only** — never in the repo, never in plaintext config. Sarvam/Google tokens all go through Keychain.
 2. **Do not translate transcribed text.** Every line stays in the language spoken. The note-gen prompt enforces this. Translation is a future opt-in feature.
 3. **Always run STT with language = multi / auto.** Never force `hi` or `en`.
 4. **Spike the risky thing first.** The Swift audio sidecar is ~80% of the project risk. M1 proves it before any UI polish or note-gen.
 5. **Two record triggers, one pipeline.** Manual ("Start recording" button) and calendar-driven (auto / ask-first) both feed the same capture → transcribe → notes flow. Build manual first; calendar is a later trigger on top.
 6. **Recording is consent-sensitive.** Always show a visible recording indicator. Offer an optional auto-disclosure line in notes. These are real client calls.
-7. **Minimal > clever.** React hooks for state, no Redux, no abstraction beyond the six interfaces. Match `design/mockup.html` exactly — clean indigo + lime, don't redesign.
+7. **Minimal > clever.** React hooks for state, no Redux, no abstraction beyond the five interfaces. Match `design/mockup.html` exactly — clean indigo + lime, don't redesign.
 
 ## Conventions
 - Rust: `thiserror`, `tracing` (local file only), no `unwrap()` in non-test code.
-- Frontend: TypeScript strict, Tailwind, functional components. Brand = `design/glyph-logo.svg`. Pages = Dashboard, Meeting/record, Settings (+ Asana modal) per `design/mockup.html`.
+- Frontend: TypeScript strict, Tailwind, functional components. Brand = `design/glyph-logo.svg`. Pages = Dashboard, Meeting/record, Settings per `design/mockup.html`.
 - IPC: everything through the typed command/event contract in `SPEC.md §10`.
 - OAuth: loopback + PKCE via the system browser; tokens to Keychain. No client secrets in the bundle.
 - Commit one ROADMAP slice per commit with its acceptance criterion.
 
 ## When unsure
-Stop and surface the decision — especially anything touching macOS audio APIs, signing/entitlements, putting a key outside the Keychain, or deviating from the six-interface structure. Resolve `SPEC.md §13` open items before the milestone that depends on them.
+Stop and surface the decision — especially anything touching macOS audio APIs, signing/entitlements, putting a key outside the Keychain, or deviating from the five-interface structure. Resolve `SPEC.md §13` open items before the milestone that depends on them.

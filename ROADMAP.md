@@ -35,14 +35,13 @@ Build `audiocap` standalone first: Core Audio tap (system audio) + AVAudioEngine
 ---
 
 ### M5 — Calendar page + auto/ask recording (2 days)
-`CalendarSource` → Google Calendar OAuth (PKCE, Keychain). A dedicated **Calendar page** lists all upcoming meetings grouped by day with detected video links and a per-meeting Ask/Auto toggle; the Dashboard "Up next" links into it. At start time, fire `meeting://starting` → ask-first prompt (default) or silent auto-record. Map meeting → default Asana project.
+`CalendarSource` → Google Calendar OAuth (PKCE, Keychain). A dedicated **Calendar page** lists all upcoming meetings grouped by day with detected video links and a per-meeting Ask/Auto toggle; the Dashboard "Up next" links into it. At start time, fire `meeting://starting` → ask-first prompt (default) or silent auto-record.
 **Done when:** the Calendar page shows all upcoming Google meetings grouped by day, and at start time a meeting prompts (or auto-starts) recording per its setting.
 
 ---
 
-### M6 — Asana action-item export (1–2 days)
-`TaskExporter` → Asana OAuth (Keychain). Fetch projects + users. The Action items panel + Asana modal (per `design/mockup.html`): pick project, assignee per item, due date, "Create N tasks." Store returned gids; show "sent" state; prevent duplicates.
-**Done when:** action items from a real meeting create assigned, dated tasks in the correct Asana project, and the app reflects they were sent.
+### M6 — (removed) Asana action-item export
+Cut on 2026-08-26 — Asana integration removed from the product. Action items stay in-app (and in PDF / email exports).
 
 ---
 
