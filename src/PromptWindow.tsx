@@ -79,11 +79,18 @@ export default function PromptWindow() {
     });
   }, [p]);
 
+  // Auto-hide is not a Dismiss: walking away from the desk shouldn't start the
+  // 2-minute cooldown and suppress the next detection.
+  const timeout = useCallback(() => {
+    setP(null);
+    commands.promptTimeout().catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!p) return;
-    const t = setTimeout(dismiss, AUTO_HIDE_MS);
+    const t = setTimeout(timeout, AUTO_HIDE_MS);
     return () => clearTimeout(t);
-  }, [p, dismiss]);
+  }, [p, timeout]);
 
   if (!p) return <div className="h-screen w-screen" />;
 

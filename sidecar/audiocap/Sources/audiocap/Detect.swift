@@ -4,11 +4,17 @@ import CoreAudio
 import Darwin
 
 // audiocap --detect — headless meeting-join detector for Glyph. Captures NO
-// audio. Once a second it reads two cheap signals:
+// audio. Once a second it reads two signals:
 //   1. is some process using the default input device?
-//      (kAudioDevicePropertyDeviceIsRunningSomewhere — public device metadata)
+//      (kAudioDevicePropertyDeviceIsRunningSomewhere — public device metadata,
+//      cheap, read every tick)
 //   2. the running-process list, to attribute the call to a platform
 //      (Zoom's in-meeting helper `CptHost`, Microsoft Teams, a browser).
+// Signal 2 costs a proc_name syscall per PID (~500-800 of them), so it is NOT
+// enumerated every tick. It runs when it can change the outcome — the mic is
+// busy, a call is up, a start/end debounce is in flight — and otherwise only
+// every `scanEveryNTicks` ticks, so a muted-mic Zoom (CptHost with no mic) is
+// still picked up within ~4 s. Skipped ticks reuse the last scan.
 // After 3 s of continuous activity it prints one JSON line to stdout:
 //   {"evt":"call_started","platform":"zoom|teams|browser|unknown"}
 // and after 10 s of inactivity:
@@ -18,10 +24,14 @@ enum Detect {
     static let pollInterval: TimeInterval = 1
     static let startDebounce: TimeInterval = 3
     static let endDebounce: TimeInterval = 10
+    /// Idle-state process-scan cadence, in ticks (~4 s at a 1 s poll).
+    static let scanEveryNTicks = 4
 
     private static var inCall = false
     private static var activeSince: Date?
     private static var idleSince: Date?
+    private static var tickCount = 0
+    private static var lastProcs: Set<String> = []
 
     static func run() -> Never {
         Log.status("detect mode")
@@ -32,9 +42,18 @@ enum Detect {
     }
 
     static func tick() {
-        let procs = processNames()
+        tickCount &+= 1
+        let busy = micBusy()
+        // Refresh the process list only when it matters: while the mic is busy,
+        // while a call is up, while a start debounce is pending (so a stale
+        // CptHost can't debounce its way into a phantom call_started), and
+        // otherwise on the slow idle cadence.
+        if busy || inCall || activeSince != nil || tickCount % scanEveryNTicks == 0 {
+            lastProcs = processNames()
+        }
+        let procs = lastProcs
         let zoomInMeeting = procs.contains("CptHost")
-        let active = zoomInMeeting || micBusy()
+        let active = zoomInMeeting || busy
         let now = Date()
 
         if active {

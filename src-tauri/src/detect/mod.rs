@@ -264,24 +264,43 @@ async fn consume(app: &AppHandle, mut rx: tauri::async_runtime::Receiver<Command
     }
 }
 
-async fn handle_line(app: &AppHandle, line: &str) {
+/// One decoded line of the sidecar's stdout protocol.
+#[derive(Debug, PartialEq)]
+enum Evt {
+    /// call_started, carrying the platform ("unknown" when the field is absent).
+    Started(String),
+    Ended,
+}
+
+/// Parse one stdout line. `None` for blanks, malformed JSON and unknown events.
+fn parse_line(line: &str) -> Option<Evt> {
     if line.trim().is_empty() {
-        return;
+        return None;
     }
     let v = match serde_json::from_str::<Value>(line) {
         Ok(v) => v,
         Err(e) => {
             tracing::warn!("detect: malformed line from sidecar: {e} ({line:?})");
-            return;
+            return None;
         }
     };
     match v.get("evt").and_then(|e| e.as_str()) {
-        Some("call_started") => {
-            let platform = v.get("platform").and_then(|p| p.as_str()).unwrap_or("unknown");
-            on_call_started(app, platform).await;
-        }
-        Some("call_ended") => on_call_ended(app),
-        _ => {}
+        Some("call_started") => Some(Evt::Started(
+            v.get("platform")
+                .and_then(|p| p.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+        )),
+        Some("call_ended") => Some(Evt::Ended),
+        _ => None,
+    }
+}
+
+async fn handle_line(app: &AppHandle, line: &str) {
+    match parse_line(line) {
+        Some(Evt::Started(platform)) => on_call_started(app, &platform).await,
+        Some(Evt::Ended) => on_call_ended(app),
+        None => {}
     }
 }
 
@@ -294,7 +313,9 @@ fn is_recording(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
-fn suppressed(app: &AppHandle) -> bool {
+/// Shared by both triggers: join detection here and the calendar prompt in
+/// `prompt::show_prompt`.
+pub(crate) fn suppressed(app: &AppHandle) -> bool {
     let ps = app.state::<PromptState>();
     !should_prompt(is_recording(app), ps.visible(), ps.in_cooldown(Instant::now()))
 }
@@ -330,6 +351,13 @@ async fn on_call_started(app: &AppHandle, platform: &str) {
 fn on_call_ended(app: &AppHandle) {
     let ps = app.state::<PromptState>();
     if !ps.visible() {
+        return;
+    }
+    // Only a card raised by join detection follows the call. An unanswered
+    // calendar prompt ("starting") must survive an unrelated call ending.
+    let kind = ps.current_kind();
+    if kind.as_deref() != Some("detected") {
+        tracing::info!("detect: call_ended, but the prompt up is {kind:?} — leaving it");
         return;
     }
     let _ = app.emit_to(prompt::WINDOW_LABEL, events::MEETING_ENDED, ());
@@ -464,5 +492,53 @@ mod tests {
             next_backoff(Duration::from_secs(40), Duration::from_secs(1)),
             Duration::from_secs(60)
         );
+    }
+
+    // ---- Wire protocol (audiocap --detect stdout) --------------------------
+
+    #[test]
+    fn parse_call_started_each_platform() {
+        for p in ["zoom", "teams", "browser", "unknown"] {
+            let line = format!(r#"{{"evt":"call_started","platform":"{p}"}}"#);
+            assert_eq!(parse_line(&line), Some(Evt::Started(p.to_string())));
+        }
+    }
+
+    #[test]
+    fn parse_call_started_without_platform_is_unknown() {
+        assert_eq!(
+            parse_line(r#"{"evt":"call_started"}"#),
+            Some(Evt::Started("unknown".into()))
+        );
+        // A non-string platform is treated the same way.
+        assert_eq!(
+            parse_line(r#"{"evt":"call_started","platform":7}"#),
+            Some(Evt::Started("unknown".into()))
+        );
+    }
+
+    #[test]
+    fn parse_call_ended() {
+        assert_eq!(parse_line(r#"{"evt":"call_ended"}"#), Some(Evt::Ended));
+    }
+
+    #[test]
+    fn parse_blank_line_is_none() {
+        assert_eq!(parse_line(""), None);
+        assert_eq!(parse_line("   \t "), None);
+    }
+
+    #[test]
+    fn parse_malformed_json_is_none() {
+        assert_eq!(parse_line("{not json"), None);
+        assert_eq!(parse_line(r#"{"evt":"call_started""#), None);
+    }
+
+    #[test]
+    fn parse_unknown_evt_is_none() {
+        assert_eq!(parse_line(r#"{"evt":"heartbeat"}"#), None);
+        assert_eq!(parse_line(r#"{"platform":"zoom"}"#), None);
+        // Valid JSON that isn't an object.
+        assert_eq!(parse_line("[1,2,3]"), None);
     }
 }

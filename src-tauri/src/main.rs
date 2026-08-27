@@ -72,6 +72,7 @@ fn main() {
             prompt::show_prompt,
             prompt::prompt_current,
             prompt::prompt_dismiss,
+            prompt::prompt_timeout,
             prompt::prompt_record,
             detect::detect_set_enabled,
             gmail::gmail_send,
@@ -92,9 +93,18 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building Glyph")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                detect::shutdown(app);
-            }
+        .run(|app, event| match event {
+            // The always-present `prompt` window keeps the runtime's window map
+            // non-empty, so Tauri never fires ExitRequested when `main` closes.
+            // Without this, the red button would leave Glyph running headless
+            // (there is no tray icon) with the detect sidecar still polling.
+            // `app.exit(0)` still produces RunEvent::Exit, so cleanup runs.
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { .. },
+                ..
+            } if label == "main" => app.exit(0),
+            tauri::RunEvent::Exit => detect::shutdown(app),
+            _ => {}
         });
 }

@@ -98,6 +98,8 @@ export const commands = {
   showPrompt: (payload: PromptPayload) => invoke<void>("show_prompt", { payload }),
   promptCurrent: () => invoke<PromptPayload | null>("prompt_current"),
   promptDismiss: () => invoke<void>("prompt_dismiss"),
+  // Auto-hide after 60 s — hides without starting the Dismiss cooldown.
+  promptTimeout: () => invoke<void>("prompt_timeout"),
   promptRecord: (payload: PromptPayload) => invoke<void>("prompt_record", { payload }),
   // Join detection on/off (persist the setting separately via setSettings).
   detectSetEnabled: (enabled: boolean) => invoke<void>("detect_set_enabled", { enabled }),
@@ -217,7 +219,6 @@ export const EVENTS = {
   recordingLevel: "recording://level",
   recordingStatus: "recording://status",
   notesGenerated: "notes://generated",
-  meetingStarting: "meeting://starting",
   meetingDetected: "meeting://detected",
   meetingEnded: "meeting://ended",
   promptRecord: "prompt://record",

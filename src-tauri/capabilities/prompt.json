@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "prompt",
+  "description": "The floating prompt popup only invokes app commands and listens for events — no shell/sidecar access.",
+  "windows": ["prompt"],
+  "permissions": ["core:default", "opener:default"]
+}

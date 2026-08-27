@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core permissions for the Glyph main + prompt windows.",
-  "windows": ["main", "prompt"],
+  "description": "Core permissions for the Glyph main window (incl. the audiocap sidecar).",
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",

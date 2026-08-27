@@ -88,11 +88,24 @@ export default function App() {
   const openMeetingRef = useRef(openMeeting);
   openMeetingRef.current = openMeeting;
   useEffect(() => {
+    // `alive` guards the StrictMode double-mount: cleanup can run before on()
+    // resolves, which would otherwise leak the first listener and fire Record
+    // twice (two notes, and a second rec.start that errors "already recording").
+    let alive = true;
     let un: (() => void) | undefined;
     on<PromptPayload>(EVENTS.promptRecord, (e) => {
       openMeetingRef.current(true, { title: e.payload.title, source: "calendar" });
-    }).then((u) => (un = u));
-    return () => un?.();
+    }).then((u) => {
+      if (!alive) {
+        u();
+        return;
+      }
+      un = u;
+    });
+    return () => {
+      alive = false;
+      un?.();
+    };
   }, []);
 
   // Open an existing saved note.

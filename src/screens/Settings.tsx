@@ -172,9 +172,12 @@ export default function Settings() {
               onChange={(i) => {
                 const v = ["off", "on"][i];
                 set("detect_meetings", v);
-                commands.detectSetEnabled(v === "on").catch((e) =>
-                  console.error("detect_set_enabled failed", e)
-                );
+                // Revert the optimistic write if the runtime refused, so the
+                // stored setting can't diverge from the sidecar until relaunch.
+                commands.detectSetEnabled(v === "on").catch((e) => {
+                  console.error("detect_set_enabled failed", e);
+                  set("detect_meetings", v === "on" ? "off" : "on");
+                });
               }}
             />
           }
