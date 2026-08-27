@@ -93,6 +93,14 @@ export const commands = {
     invoke<void>("delete_credential", { id }),
   credentialStatus: () =>
     invoke<CredentialStatus[]>("credential_status"),
+
+  // Prompt window (floating popup) — one surface for calendar + join triggers.
+  showPrompt: (payload: PromptPayload) => invoke<void>("show_prompt", { payload }),
+  promptCurrent: () => invoke<PromptPayload | null>("prompt_current"),
+  promptDismiss: () => invoke<void>("prompt_dismiss"),
+  promptRecord: (payload: PromptPayload) => invoke<void>("prompt_record", { payload }),
+  // Join detection on/off (persist the setting separately via setSettings).
+  detectSetEnabled: (enabled: boolean) => invoke<void>("detect_set_enabled", { enabled }),
 };
 
 export interface CalendarEvent {
@@ -106,6 +114,17 @@ export interface CalendarEvent {
   attendeeEmails: string[];
   account: string;
   autoRecord: string;
+}
+
+/** What the floating prompt shows. kind: "starting" = calendar start time,
+ *  "detected" = a call was joined. */
+export interface PromptPayload {
+  kind: "starting" | "detected";
+  title: string;
+  platform: string | null;
+  startTs: number | null; // epoch ms; null for ad-hoc calls
+  attendees: string[];
+  eventId: string | null;
 }
 
 export type MicPermission = "authorized" | "denied" | "restricted" | "undetermined";
@@ -199,6 +218,9 @@ export const EVENTS = {
   recordingStatus: "recording://status",
   notesGenerated: "notes://generated",
   meetingStarting: "meeting://starting",
+  meetingDetected: "meeting://detected",
+  meetingEnded: "meeting://ended",
+  promptRecord: "prompt://record",
 } as const;
 
 export function on<T>(
