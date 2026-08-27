@@ -98,13 +98,15 @@ Swift CLI `audiocap`. References: `insidegui/AudioCap`, `AudioTee`.
 - Poll events for the next window; parse `conferenceData` / location / description for Meet / Zoom / Teams links.
 - Surface "upcoming meetings" on the Dashboard with per-meeting auto-record setting (Ask / Auto).
 - At an event's start time: if it has a video link, fire the recording trigger per the user's setting (ask-first default). Enhancement: only prompt if the mic is actually in use by a meeting app.
+- Join detection: `audiocap --detect` (mic-busy flag + process scan, no audio) fires the same ask-first prompt for calls not on the calendar; see `docs/superpowers/specs/2026-08-26-meeting-join-popup-design.md`.
 
 ## 9. Tasks — (removed)
 - Asana action-item export was removed on 2026-08-26. Action items live in-app and in PDF / Gmail exports only.
 
 ## 10. IPC contract (frontend ↔ Rust)
 **Commands:** `start_recording {source: manual|calendar, eventId?}` → sessionId; `stop_recording` → noteId; `list_notes`; `get_note {id}`; `update_title`; `save_scratch`; `regenerate_notes {id, model}`; `delete_note`; `delete_audio`; `get_settings`/`set_settings`; `check_permissions`/`open_permission_settings`; `calendar_connect`/`calendar_upcoming`.
-**Events:** `transcript://partial`, `transcript://final`, `recording://level`, `recording://status`, `notes://generated`, `meeting://starting {event}` (auto-record prompt).
+**Events:** `transcript://partial`, `transcript://final`, `recording://level`, `recording://status`, `notes://generated`, `meeting://detected {PromptPayload}` (→ prompt window), `meeting://ended` (→ prompt window), `prompt://record {PromptPayload}` (→ main window). Calendar ask-first now shows the same prompt window (via `show_prompt`) rather than a dedicated auto-record event; the earlier `meeting://starting` event is superseded.
+**Prompt window commands:** `show_prompt {payload}`, `prompt_current`, `prompt_dismiss`, `prompt_record {payload}`, `detect_set_enabled {enabled}`.
 
 ## 11. Data model (SQLite)
 ```sql

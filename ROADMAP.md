@@ -38,6 +38,8 @@ Build `audiocap` standalone first: Core Audio tap (system audio) + AVAudioEngine
 `CalendarSource` → Google Calendar OAuth (PKCE, Keychain). A dedicated **Calendar page** lists all upcoming meetings grouped by day with detected video links and a per-meeting Ask/Auto toggle; the Dashboard "Up next" links into it. At start time, fire `meeting://starting` → ask-first prompt (default) or silent auto-record.
 **Done when:** the Calendar page shows all upcoming Google meetings grouped by day, and at start time a meeting prompts (or auto-starts) recording per its setting.
 
+**Meeting radar (2026-08-26):** floating always-on-top prompt window for both triggers + sidecar `--detect` join detection. Done when joining a Zoom/Meet call with Glyph in the background shows the prompt and Record starts a recording. Full-screen Zoom behaviour: unverified — needs a human check.
+
 ---
 
 ### M6 — (removed) Asana action-item export
