@@ -163,6 +163,23 @@ export default function Settings() {
           }
         />
         <SRow
+          title="Detect when I join meetings"
+          desc="Show a floating prompt to record when a Zoom, Teams or browser call starts — even for meetings not on your calendar. Nothing is recorded until you tap Record."
+          control={
+            <Seg
+              options={["Off", "On"]}
+              value={idx(["off", "on"], values.detect_meetings)}
+              onChange={(i) => {
+                const v = ["off", "on"][i];
+                set("detect_meetings", v);
+                commands.detectSetEnabled(v === "on").catch((e) =>
+                  console.error("detect_set_enabled failed", e)
+                );
+              }}
+            />
+          }
+        />
+        <SRow
           title="Audio retention"
           desc="Keep recordings, or delete the audio file automatically once a meeting is transcribed."
           control={

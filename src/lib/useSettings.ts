@@ -11,6 +11,7 @@ export const DEFAULTS: SettingsMap = {
   language: "auto",
   stt_language: "auto",
   auto_record: "ask",
+  detect_meetings: "on",
   audio_retention: "keep",
   auto_disclosure: "off",
   theme: "system",
