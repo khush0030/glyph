@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { Badge } from "./components/ui";
 import { commands, on, EVENTS, type PromptPayload } from "./lib/ipc";
 import { fmtClock } from "./lib/useCalendar";
@@ -18,18 +18,50 @@ export default function PromptWindow() {
   useTheme();
   const [p, setP] = useState<PromptPayload | null>(null);
 
-  // Frameless + transparent window: only the card itself paints.
-  useEffect(() => {
+  // Frameless + transparent window: only the card itself paints. useLayoutEffect
+  // so the background is set before paint — no flash of the default background.
+  useLayoutEffect(() => {
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
   }, []);
 
   useEffect(() => {
-    commands.promptCurrent().then((cur) => cur && setP(cur)).catch(() => {});
+    let alive = true;
+    // Guards promptCurrent()'s resolution from clobbering a newer payload
+    // already delivered by meeting://detected while the fetch was in flight.
+    let gotEvent = false;
     const uns: Array<() => void> = [];
-    on<PromptPayload>(EVENTS.meetingDetected, (e) => setP(e.payload)).then((u) => uns.push(u));
-    on<void>(EVENTS.meetingEnded, () => setP(null)).then((u) => uns.push(u));
-    return () => uns.forEach((u) => u());
+
+    commands
+      .promptCurrent()
+      .then((cur) => {
+        if (!alive || gotEvent) return;
+        if (cur) setP(cur);
+      })
+      .catch(() => {});
+
+    on<PromptPayload>(EVENTS.meetingDetected, (e) => {
+      gotEvent = true;
+      setP(e.payload);
+    }).then((u) => {
+      if (!alive) {
+        u();
+        return;
+      }
+      uns.push(u);
+    });
+    on<void>(EVENTS.meetingEnded, () => setP(null)).then((u) => {
+      if (!alive) {
+        u();
+        return;
+      }
+      uns.push(u);
+    });
+
+    return () => {
+      alive = false;
+      uns.forEach((u) => u());
+    };
   }, []);
 
   const dismiss = useCallback(() => {
@@ -41,7 +73,10 @@ export default function PromptWindow() {
     if (!p) return;
     const cur = p;
     setP(null);
-    commands.promptRecord(cur).catch((e) => console.error("prompt_record failed", e));
+    commands.promptRecord(cur).catch((e) => {
+      console.error("prompt_record failed", e);
+      setP(cur);
+    });
   }, [p]);
 
   useEffect(() => {
