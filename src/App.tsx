@@ -1,14 +1,13 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./screens/Dashboard";
 import Calendar from "./screens/Calendar";
 import Notes from "./screens/Notes";
 import Meeting from "./screens/Meeting";
 import Settings from "./screens/Settings";
-import MeetingStartingPrompt from "./components/MeetingStartingPrompt";
 import Onboarding from "./components/Onboarding";
 import RecordingBar from "./components/RecordingBar";
-import { commands, type NoteSource, type CalendarEvent } from "./lib/ipc";
+import { commands, on, EVENTS, type NoteSource, type CalendarEvent, type PromptPayload } from "./lib/ipc";
 import { useMeetingScheduler } from "./lib/useMeetingScheduler";
 import { useRecordingController } from "./lib/useRecordingController";
 import { useSettings } from "./lib/useSettings";
@@ -19,7 +18,6 @@ export type Page = "dashboard" | "calendar" | "notes" | "meeting" | "settings";
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [meetingNoteId, setMeetingNoteId] = useState<string | null>(null);
-  const [starting, setStarting] = useState<CalendarEvent | null>(null);
 
   // Load the persisted theme and apply `.dark` to <html> on startup.
   useTheme();
@@ -66,13 +64,36 @@ export default function App() {
     [rec, viewActiveRecording]
   );
 
-  // Fire at a meeting's start: auto-record, or ask via the prompt.
+  // Fire at a meeting's start: auto-record, or ask via the floating prompt
+  // window (same surface join-detection uses).
   const onAuto = useCallback(
     (ev: CalendarEvent) => openMeeting(true, { title: ev.title, source: "calendar" }),
     [openMeeting]
   );
-  const onAsk = useCallback((ev: CalendarEvent) => setStarting(ev), []);
+  const onAsk = useCallback((ev: CalendarEvent) => {
+    commands
+      .showPrompt({
+        kind: "starting",
+        title: ev.title,
+        platform: ev.platform,
+        startTs: ev.startTs,
+        attendees: ev.attendees,
+        eventId: ev.id,
+      })
+      .catch((e) => console.error("show_prompt failed", e));
+  }, []);
   useMeetingScheduler(onAuto, onAsk);
+
+  // Record clicked in the prompt window → the normal calendar-record path.
+  const openMeetingRef = useRef(openMeeting);
+  openMeetingRef.current = openMeeting;
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    on<PromptPayload>(EVENTS.promptRecord, (e) => {
+      openMeetingRef.current(true, { title: e.payload.title, source: "calendar" });
+    }).then((u) => (un = u));
+    return () => un?.();
+  }, []);
 
   // Open an existing saved note.
   function openNote(id: string) {
@@ -124,18 +145,6 @@ export default function App() {
           {page === "settings" && <Settings />}
         </div>
       </main>
-
-      {starting && (
-        <MeetingStartingPrompt
-          event={starting}
-          onRecord={() => {
-            const ev = starting;
-            setStarting(null);
-            openMeeting(true, { title: ev.title, source: "calendar" });
-          }}
-          onDismiss={() => setStarting(null)}
-        />
-      )}
     </div>
   );
 }
